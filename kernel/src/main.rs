@@ -69,14 +69,6 @@ fn main() -> ! {
         
         unsafe { 
             ITERATION_COUNT += 1;
-            
-            // Simulate external termination after 100 iterations (longer demo)
-            if ITERATION_COUNT >= 100 {
-                scheduler::post_event_with_priority(0xFF, EventPriority::Critical);
-                arch::arch_println("Posted CRITICAL shutdown event (0xFF)");
-                TERMINATE_FLAG = true;
-                break;
-            }
         }
         
         // Cooperative scheduler - run next ready task
@@ -85,40 +77,36 @@ fn main() -> ! {
                 simulate_async_task_work(task.id);
             }
             
-            // Demonstrate event-driven task blocking
+            // Demonstrate event-driven task blocking (less verbose)
             match task.id {
                 0 => {
                     // Timer task - blocks on timer event every 3rd iteration
                     if unsafe { ITERATION_COUNT % 3 == 0 } {
                         scheduler::block_current(0x1); // Block on timer event
-                        arch::arch_println("Task 0 (Timer) blocked on event 0x1");
                     }
                 },
                 1 => {
                     // I/O task - blocks on I/O completion every 4th iteration  
                     if unsafe { ITERATION_COUNT % 4 == 0 } {
                         scheduler::block_current(0x2); // Block on I/O event
-                        arch::arch_println("Task 1 (I/O) blocked on event 0x2");
                     }
                 },
                 2 => {
                     // Background task - blocks on low priority work every 5th iteration
                     if unsafe { ITERATION_COUNT % 5 == 0 } {
                         scheduler::block_current(0x3); // Block on background event
-                        arch::arch_println("Task 2 (Background) blocked on event 0x3");
                     }
                 },
                 3 => {
                     // UI task - blocks on user input every 6th iteration
                     if unsafe { ITERATION_COUNT % 6 == 0 } {
                         scheduler::block_current(0x4); // Block on user event
-                        arch::arch_println("Task 3 (UI) blocked on event 0x4");
                     }
                 },
                 _ => {}
             }
         } else {
-            arch::arch_println("No ready tasks - processing events only");
+            // No ready tasks - continue processing UART and events
         }
         
         // Simulate cooperative yielding delay
@@ -126,39 +114,29 @@ fn main() -> ! {
             unsafe { core::ptr::read_volatile(&0); }
         }
         
-        // Event-driven wake-up system - post events based on priority
+        // Event-driven wake-up system - post events based on priority (less verbose)
         unsafe {
-            match ITERATION_COUNT % 8 {
-                1 => {
+            match ITERATION_COUNT % 20 {
+                5 => {
                     scheduler::post_event_with_priority(0x1, EventPriority::High);
-                    arch::arch_println("Posted HIGH priority timer event (0x1)");
                 },
-                2 => {
+                10 => {
                     scheduler::post_event_with_priority(0x2, EventPriority::Normal);
-                    arch::arch_println("Posted NORMAL priority I/O event (0x2)");
                 },
-                3 => {
+                15 => {
                     scheduler::post_event_with_priority(0x3, EventPriority::Low);
-                    arch::arch_println("Posted LOW priority background event (0x3)");
-                },
-                4 => {
-                    scheduler::post_event_with_priority(0x4, EventPriority::Normal);
-                    arch::arch_println("Posted NORMAL priority UI event (0x4)");
                 },
                 0 => {
-                    // Show scheduler statistics
-                    let (_active_tasks, _total_events) = scheduler::scheduler_stats();
-                    arch::arch_println("Scheduler Stats: Active tasks, Total events processed");
+                    scheduler::post_event_with_priority(0x4, EventPriority::Normal);
                 },
                 _ => {}
             }
         }
         
-        // Demonstrate priority-based event processing
-        if unsafe { ITERATION_COUNT % 10 == 0 } {
-            arch::arch_println("=== Event Processing Cycle Complete ===");
-            arch::arch_println("Priority order: Critical > High > Normal > Low");
-            arch::arch_println("Mutual exclusion: Events processed atomically");
+        // Demonstrate priority-based event processing (less verbose)
+        if unsafe { ITERATION_COUNT % 50 == 0 } {
+            arch::arch_println("=== System Health Check ===");
+            arch::arch_println("UART Interface: Active | Scheduler: Running | Tasks: 4 active");
         }
     }
     
@@ -244,17 +222,20 @@ unsafe fn handle_uart_command(command: UartCommand) {
     }
 }
 
-// Simulate async task work with cooperative yielding
+// Simulate async task work with cooperative yielding (less verbose)
 #[cfg(feature = "arm")]
 unsafe fn simulate_async_task_work(task_id: usize) {
     TASK_WORK_COUNTER[task_id] += 1;
     
-    match task_id {
-        0 => arch::arch_println("Task 0: Timer management (high priority)"),
-        1 => arch::arch_println("Task 1: I/O processing (normal priority)"), 
-        2 => arch::arch_println("Task 2: Background cleanup (low priority)"),
-        3 => arch::arch_println("Task 3: User interface (normal priority)"),
-        _ => arch::arch_println("Task: Unknown work"),
+    // Only show task activity occasionally to keep UART interface visible
+    if ITERATION_COUNT % 25 == 0 {
+        match task_id {
+            0 => arch::arch_println("Task 0: Timer management (high priority)"),
+            1 => arch::arch_println("Task 1: I/O processing (normal priority)"), 
+            2 => arch::arch_println("Task 2: Background cleanup (low priority)"),
+            3 => arch::arch_println("Task 3: User interface (normal priority)"),
+            _ => arch::arch_println("Task: Unknown work"),
+        }
     }
     
     // Simulate some work - tasks cooperatively yield control
