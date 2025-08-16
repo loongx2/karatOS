@@ -3,6 +3,7 @@
 
 mod arch;
 mod scheduler;
+mod logger;
 
 #[cfg(feature = "arm")]
 mod uart;
@@ -46,10 +47,10 @@ fn main() -> ! {
     init_uart();
     uart_write_str(UartResponses::welcome_message());
     
-    arch::arch_println("=== Async Event-Driven RTOS Kernel ===");
-    arch::arch_println("Algorithm: Priority-based Cooperative Multitasking");
-    arch::arch_println("Features: No deadlocks, Mutually exclusive events, Single-threaded async");
-    arch::arch_println("UART Interface: Active and ready for commands");
+    log_visible!("=== Async Event-Driven RTOS Kernel ===");
+    log_visible!("Algorithm: Priority-based Cooperative Multitasking");
+    log_visible!("Features: No deadlocks, Mutually exclusive events, Single-threaded async");
+    log_visible!("UART Interface: Active and ready for commands");
     
     // Spawn async event-driven tasks
     let _ = scheduler::add_task(Task::new(0)); // High-priority timer task
@@ -57,8 +58,8 @@ fn main() -> ! {
     let _ = scheduler::add_task(Task::new(2)); // Background cleanup task
     let _ = scheduler::add_task(Task::new(3)); // User interface task
     
-    arch::arch_println("Spawned 4 async tasks");
-    arch::arch_println("Starting event-driven execution loop...");
+    log_visible!("Spawned 4 async tasks");
+    log_visible!("Starting event-driven execution loop...");
     
     // Main async event loop - processes events and schedules tasks cooperatively
     while unsafe { !TERMINATE_FLAG } {
@@ -135,19 +136,19 @@ fn main() -> ! {
         
         // Demonstrate priority-based event processing (less verbose)
         if unsafe { ITERATION_COUNT % 50 == 0 } {
-            arch::arch_println("=== System Health Check ===");
-            arch::arch_println("UART Interface: Active | Scheduler: Running | Tasks: 4 active");
+            log_debug!("=== System Health Check ===");
+            log_debug!("UART Interface: Active | Scheduler: Running | Tasks: 4 active");
         }
     }
     
     // Show final task work statistics
-    arch::arch_println("=== Final Task Statistics ===");
+    log_debug!("=== Final Task Statistics ===");
     for _i in 0..4 {
-        arch::arch_println("Task completed work units");
+        log_debug!("Task completed work units");
     }
     
-    arch::arch_println("=== Async Kernel Shutdown Complete ===");
-    arch::arch_println("Demonstrated: Cooperative multitasking, Priority events, No deadlocks");
+    log_visible!("=== Async Kernel Shutdown Complete ===");
+    log_visible!("Demonstrated: Cooperative multitasking, Priority events, No deadlocks");
     
     // Exit QEMU cleanly
     #[cfg(feature = "arm")]
@@ -191,17 +192,39 @@ unsafe fn handle_uart_command(command: UartCommand) {
     match command {
         UartCommand::Status => {
             uart_write_str(UartResponses::status_response());
+            
+            // Send log snapshot (last 50 lines)
+            uart_write_str("\n=== Recent Debug Log (Last 50 Lines) ===\n");
+            let logs = logger::Logger::get_last_lines(50);
+            let (buffer_size, total_lines, _) = logger::Logger::get_stats();
+            
+            // Send log statistics first
+            uart_write_str("Log Stats: ");
+            let mut stats_msg = heapless::String::<64>::new();
+            {
+                use core::fmt::Write;
+                let _ = write!(stats_msg, "{} lines buffered, {} total logged\n", buffer_size, total_lines);
+            }
+            uart_write_str(&stats_msg);
+            
+            uart_write_str("--- Debug Log ---\n");
+            // Send each log line
+            for log_line in logs.iter() {
+                uart_write_str(log_line.as_str());
+                uart_write_str("\n");
+            }
+            uart_write_str("--- End Debug Log ---\n");
         },
         UartCommand::Exit => {
             uart_write_str(UartResponses::exit_response());
-            arch::arch_println("UART: Exit command received");
+            log_debug!("UART: Exit command received");
             TERMINATE_FLAG = true;
             // Post critical shutdown event
             scheduler::post_event_with_priority(0xFF, EventPriority::Critical);
         },
         UartCommand::Restart => {
             uart_write_str(UartResponses::restart_response());
-            arch::arch_println("UART: Restart command received");
+            log_debug!("UART: Restart command received");
             // In a real system, this would trigger a hardware reset
             // For QEMU, we'll just restart the kernel loop
             ITERATION_COUNT = 0;
@@ -209,6 +232,7 @@ unsafe fn handle_uart_command(command: UartCommand) {
                 let uart_if = unsafe { &mut UART_INTERFACE };
                 uart_if.clear_input();
             }
+            logger::Logger::clear(); // Clear log buffer on restart
             uart_write_str("\n=== System Restarted ===\n");
             uart_write_str(UartResponses::welcome_message());
         },
@@ -222,20 +246,18 @@ unsafe fn handle_uart_command(command: UartCommand) {
     }
 }
 
-// Simulate async task work with cooperative yielding (less verbose)
+// Simulate async task work with cooperative yielding (silent logging)
 #[cfg(feature = "arm")]
 unsafe fn simulate_async_task_work(task_id: usize) {
     TASK_WORK_COUNTER[task_id] += 1;
     
-    // Only show task activity occasionally to keep UART interface visible
-    if ITERATION_COUNT % 25 == 0 {
-        match task_id {
-            0 => arch::arch_println("Task 0: Timer management (high priority)"),
-            1 => arch::arch_println("Task 1: I/O processing (normal priority)"), 
-            2 => arch::arch_println("Task 2: Background cleanup (low priority)"),
-            3 => arch::arch_println("Task 3: User interface (normal priority)"),
-            _ => arch::arch_println("Task: Unknown work"),
-        }
+    // Log task activity silently to buffer
+    match task_id {
+        0 => log_debug!("Task 0: Timer management (high priority)"),
+        1 => log_debug!("Task 1: I/O processing (normal priority)"), 
+        2 => log_debug!("Task 2: Background cleanup (low priority)"),
+        3 => log_debug!("Task 3: User interface (normal priority)"),
+        _ => log_debug!("Task: Unknown work"),
     }
     
     // Simulate some work - tasks cooperatively yield control
