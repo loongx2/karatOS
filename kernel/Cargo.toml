@@ -17,9 +17,5 @@ riscv = ["riscv-rt", "dep:riscv"]
 default = []
 
 [[bin]]
-name = "minimal"
-path = "src/minimal.rs"
-
-[[bin]]
 name = "kernel"
 path = "src/main.rs"
