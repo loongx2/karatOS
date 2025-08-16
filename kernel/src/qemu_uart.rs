@@ -107,6 +107,7 @@ impl QemuUart {
     }
     
     /// Check if transmit is ready
+    #[allow(dead_code)]
     pub fn tx_ready(&self) -> bool {
         unsafe {
             (read_volatile((self.base_addr + UART_FR) as *const u32) & UART_FR_TXFF) == 0
@@ -126,37 +127,47 @@ impl core::fmt::Write for QemuUart {
 static mut QEMU_UART: QemuUart = QemuUart::new();
 
 /// Initialize global UART
+#[allow(static_mut_refs)]
 pub fn init_uart() {
     unsafe {
-        QEMU_UART.init();
+        let uart = &mut QEMU_UART;
+        uart.init();
     }
 }
 
 /// Write string to global UART
+#[allow(static_mut_refs)]
 pub fn uart_write_str(s: &str) {
     unsafe {
-        QEMU_UART.write_str(s);
+        let uart = &QEMU_UART;
+        uart.write_str(s);
     }
 }
 
 /// Write byte to global UART
+#[allow(dead_code, static_mut_refs)]
 pub fn uart_write_byte(byte: u8) {
     unsafe {
-        QEMU_UART.write_byte(byte);
+        let uart = &QEMU_UART;
+        uart.write_byte(byte);
     }
 }
 
 /// Read byte from global UART
+#[allow(static_mut_refs)]
 pub fn uart_read_byte() -> Option<u8> {
     unsafe {
-        QEMU_UART.read_byte()
+        let uart = &QEMU_UART;
+        uart.read_byte()
     }
 }
 
 /// Check if UART data is available
+#[allow(static_mut_refs)]
 pub fn uart_data_available() -> bool {
     unsafe {
-        QEMU_UART.data_available()
+        let uart = &QEMU_UART;
+        uart.data_available()
     }
 }
 

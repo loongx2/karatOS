@@ -180,6 +180,7 @@ fn main() -> ! {
 
 // Process UART commands and handle system control
 #[cfg(feature = "arm")]
+#[allow(static_mut_refs)]
 unsafe fn process_uart_commands() {
     // Check for incoming UART data
     while uart_data_available() {
@@ -194,7 +195,10 @@ unsafe fn process_uart_commands() {
             }
             
             // Process the byte through command parser
-            if let Some(command) = UART_INTERFACE.process_byte(byte) {
+            if let Some(command) = { 
+                let uart_if = unsafe { &mut UART_INTERFACE };
+                uart_if.process_byte(byte) 
+            } {
                 handle_uart_command(command);
                 uart_write_str(UartResponses::prompt());
             }
@@ -204,6 +208,7 @@ unsafe fn process_uart_commands() {
 
 // Handle executed UART commands
 #[cfg(feature = "arm")]
+#[allow(static_mut_refs)]
 unsafe fn handle_uart_command(command: UartCommand) {
     match command {
         UartCommand::Status => {
@@ -222,7 +227,10 @@ unsafe fn handle_uart_command(command: UartCommand) {
             // In a real system, this would trigger a hardware reset
             // For QEMU, we'll just restart the kernel loop
             ITERATION_COUNT = 0;
-            UART_INTERFACE.clear_input();
+            {
+                let uart_if = unsafe { &mut UART_INTERFACE };
+                uart_if.clear_input();
+            }
             uart_write_str("\n=== System Restarted ===\n");
             uart_write_str(UartResponses::welcome_message());
         },

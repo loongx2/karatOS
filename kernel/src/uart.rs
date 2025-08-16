@@ -100,6 +100,7 @@ impl UartInterface {
     }
     
     /// Get current input buffer as string (for echo)
+    #[allow(dead_code)]
     pub fn get_current_input(&self) -> &str {
         core::str::from_utf8(&self.input_buffer).unwrap_or("")
     }
