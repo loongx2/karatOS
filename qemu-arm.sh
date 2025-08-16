@@ -8,5 +8,5 @@ rustup target add thumbv7m-none-eabi
 cd kernel
 cargo build --bin kernel --target thumbv7m-none-eabi --features arm
 
-# Run in QEMU with semihosting enabled
-qemu-system-arm -M lm3s6965evb -nographic -semihosting-config enable=on,target=native -kernel ../target/thumbv7m-none-eabi/debug/kernel
+# Run in QEMU with semihosting and UART enabled via monitor
+qemu-system-arm -M lm3s6965evb -nographic -semihosting-config enable=on,target=native -serial mon:stdio -kernel ../target/thumbv7m-none-eabi/debug/kernel

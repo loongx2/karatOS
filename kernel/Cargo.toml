@@ -10,10 +10,12 @@ cortex-m = { version = "0.7", optional = true }
 panic-halt = { version = "0.2", optional = true }
 riscv-rt = { version = "0.11", optional = true }
 riscv = { version = "0.11", optional = true }
+nb = { version = "1.0", optional = true }
+heapless = { version = "0.8", optional = true }
 
 [features]
-arm = ["cortex-m-rt", "cortex-m-semihosting", "cortex-m", "panic-halt"]
-riscv = ["riscv-rt", "dep:riscv"]
+arm = ["cortex-m-rt", "cortex-m-semihosting", "cortex-m", "panic-halt", "nb", "heapless"]
+riscv = ["riscv-rt", "dep:riscv", "nb", "heapless"]
 default = []
 
 [[bin]]

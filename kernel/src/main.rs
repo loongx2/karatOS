@@ -4,6 +4,11 @@
 mod arch;
 mod scheduler;
 
+#[cfg(feature = "arm")]
+mod uart;
+#[cfg(feature = "arm")]
+mod qemu_uart;
+
 use scheduler::{Task, EventPriority};
 
 #[cfg(feature = "arm")]
@@ -15,21 +20,36 @@ use cortex_m_semihosting::debug;
 #[cfg(feature = "arm")]
 use panic_halt as _;
 
+#[cfg(feature = "arm")]
+use uart::{UartInterface, UartCommand, UartResponses};
+
+#[cfg(feature = "arm")]
+use qemu_uart::{init_uart, uart_write_str, uart_read_byte, uart_data_available};
+
 // Global state for async event-driven execution
 #[cfg(feature = "arm")]
 static mut TERMINATE_FLAG: bool = false;
 #[cfg(feature = "arm")]
 static mut ITERATION_COUNT: u32 = 0;
+#[cfg(feature = "arm")]
 #[allow(dead_code)]
 static mut TASK_WORK_COUNTER: [u32; 4] = [0; 4]; // Track work done by each task
+#[cfg(feature = "arm")]
+static mut UART_INTERFACE: UartInterface = UartInterface::new();
 
 #[cfg(feature = "arm")]
 #[entry]
 fn main() -> ! {
     arch::arch_init();
+    
+    // Initialize UART interface
+    init_uart();
+    uart_write_str(UartResponses::welcome_message());
+    
     arch::arch_println("=== Async Event-Driven RTOS Kernel ===");
     arch::arch_println("Algorithm: Priority-based Cooperative Multitasking");
     arch::arch_println("Features: No deadlocks, Mutually exclusive events, Single-threaded async");
+    arch::arch_println("UART Interface: Active and ready for commands");
     
     // Spawn async event-driven tasks
     let _ = scheduler::add_task(Task::new(0)); // High-priority timer task
@@ -42,11 +62,16 @@ fn main() -> ! {
     
     // Main async event loop - processes events and schedules tasks cooperatively
     while unsafe { !TERMINATE_FLAG } {
+        // Process UART commands first (highest priority)
+        unsafe {
+            process_uart_commands();
+        }
+        
         unsafe { 
             ITERATION_COUNT += 1;
             
-            // Simulate external termination after 20 iterations
-            if ITERATION_COUNT >= 20 {
+            // Simulate external termination after 100 iterations (longer demo)
+            if ITERATION_COUNT >= 100 {
                 scheduler::post_event_with_priority(0xFF, EventPriority::Critical);
                 arch::arch_println("Posted CRITICAL shutdown event (0xFF)");
                 TERMINATE_FLAG = true;
@@ -151,6 +176,64 @@ fn main() -> ! {
     debug::exit(debug::EXIT_SUCCESS);
     
     loop {}
+}
+
+// Process UART commands and handle system control
+#[cfg(feature = "arm")]
+unsafe fn process_uart_commands() {
+    // Check for incoming UART data
+    while uart_data_available() {
+        if let Some(byte) = uart_read_byte() {
+            // Echo the character for user feedback
+            if byte >= b' ' && byte <= b'~' {
+                uart_write_str(core::str::from_utf8(&[byte]).unwrap_or(""));
+            } else if byte == b'\r' || byte == b'\n' {
+                uart_write_str("\n");
+            } else if byte == b'\x08' || byte == b'\x7f' { // Backspace
+                uart_write_str("\x08 \x08"); // Backspace, space, backspace
+            }
+            
+            // Process the byte through command parser
+            if let Some(command) = UART_INTERFACE.process_byte(byte) {
+                handle_uart_command(command);
+                uart_write_str(UartResponses::prompt());
+            }
+        }
+    }
+}
+
+// Handle executed UART commands
+#[cfg(feature = "arm")]
+unsafe fn handle_uart_command(command: UartCommand) {
+    match command {
+        UartCommand::Status => {
+            uart_write_str(UartResponses::status_response());
+        },
+        UartCommand::Exit => {
+            uart_write_str(UartResponses::exit_response());
+            arch::arch_println("UART: Exit command received");
+            TERMINATE_FLAG = true;
+            // Post critical shutdown event
+            scheduler::post_event_with_priority(0xFF, EventPriority::Critical);
+        },
+        UartCommand::Restart => {
+            uart_write_str(UartResponses::restart_response());
+            arch::arch_println("UART: Restart command received");
+            // In a real system, this would trigger a hardware reset
+            // For QEMU, we'll just restart the kernel loop
+            ITERATION_COUNT = 0;
+            UART_INTERFACE.clear_input();
+            uart_write_str("\n=== System Restarted ===\n");
+            uart_write_str(UartResponses::welcome_message());
+        },
+        UartCommand::Help => {
+            uart_write_str(UartResponses::help_response());
+        },
+        UartCommand::Unknown(cmd) => {
+            let response = UartResponses::unknown_response(&cmd);
+            uart_write_str(&response);
+        },
+    }
 }
 
 // Simulate async task work with cooperative yielding
