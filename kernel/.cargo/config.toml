@@ -1,0 +1,10 @@
+[target.thumbv7m-none-eabi]
+runner = "qemu-system-arm -M lm3s6965evb -nographic -semihosting-config enable=on,target=native -kernel"
+rustflags = [
+  "-C", "linker=rust-lld",
+  "-C", "link-arg=-Tlink.x",
+  "-C", "link-arg=--nmagic",
+]
+
+[build]
+# Don't set default target here to avoid issues
