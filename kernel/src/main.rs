@@ -16,8 +16,11 @@ use cortex_m_semihosting::debug;
 use panic_halt as _;
 
 // Global state for async event-driven execution
+#[cfg(feature = "arm")]
 static mut TERMINATE_FLAG: bool = false;
+#[cfg(feature = "arm")]
 static mut ITERATION_COUNT: u32 = 0;
+#[allow(dead_code)]
 static mut TASK_WORK_COUNTER: [u32; 4] = [0; 4]; // Track work done by each task
 
 #[cfg(feature = "arm")]
@@ -151,6 +154,7 @@ fn main() -> ! {
 }
 
 // Simulate async task work with cooperative yielding
+#[cfg(feature = "arm")]
 unsafe fn simulate_async_task_work(task_id: usize) {
     TASK_WORK_COUNTER[task_id] += 1;
     

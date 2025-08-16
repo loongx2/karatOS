@@ -24,6 +24,7 @@ pub enum EventPriority {
     Critical = 0,  // Interrupt handlers, emergency shutdown
     High = 1,      // Time-critical operations
     Normal = 2,    // Regular task events
+    #[allow(dead_code)]
     Low = 3,       // Background, cleanup tasks
 }
 
@@ -314,6 +315,7 @@ impl AsyncScheduler {
     }
     
     /// Get scheduler statistics
+    #[allow(dead_code)]
     pub fn stats(&self) -> (u32, u32) {
         (
             self.active_tasks.load(Ordering::Relaxed),
@@ -383,6 +385,7 @@ pub fn interrupt_event(event_id: u32) {
 }
 
 /// Get scheduler statistics (active_tasks, total_events)
+#[allow(dead_code)]
 pub fn scheduler_stats() -> (u32, u32) {
     with_scheduler(|sched| sched.stats())
 }
