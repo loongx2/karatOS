@@ -49,10 +49,9 @@ This connects GDB to QEMU and gives you an interactive prompt.
 
 ## Available Scripts
 
-1. **`./qemu-jtag-debug.sh`** - Start QEMU with JTAG server
-2. **`./debug-interactive.sh`** - Connect GDB interactively (recommended)
-3. **`./debug-fixed.sh`** - Automated debugging session
-4. **`./debug-rust-gdb.sh`** - Alternative GDB connection
+1. **`./qemu-arm.sh`** - Standard UART interface (no debugging)
+2. **`./qemu-jtag-debug.sh`** - Start QEMU with JTAG server
+3. **`./debug-interactive.sh`** - Connect GDB interactively (recommended)
 
 ## Debugging Workflow Example
 

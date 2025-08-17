@@ -1,8 +1,8 @@
 # JTAG Debugging Guide for ARM RTOS
 
-This directory contains scripts and documentation for JTAG debugging the ARM RTOS kernel using QEMU emulation and real hardware.
+This directory contains scripts and documentation for JTAG debugging the ARM RTOS kernel using QEMU emulation.
 
-## QEMU JTAG Debugging (Recommended for Development)
+## QEMU JTAG Debugging
 
 ### Quick Start
 
@@ -17,13 +17,13 @@ This directory contains scripts and documentation for JTAG debugging the ARM RTO
 
 2. **Terminal 2 - Connect GDB debugger:**
    ```bash
-   ./debug-rust-gdb.sh
+   ./debug-interactive.sh
    ```
    This will:
    - Connect to QEMU's JTAG server
    - Load debug symbols
    - Set breakpoints on main() and panic handlers
-   - Start debugging session
+   - Start interactive debugging session
 
 ### Debugging Workflow
 
@@ -46,40 +46,6 @@ This directory contains scripts and documentation for JTAG debugging the ARM RTO
 (gdb) print variable_name          # Print variable value
 (gdb) x/10x 0x20000000             # Examine memory (RAM start)
 ```
-
-## Real Hardware JTAG Debugging
-
-### Prerequisites
-
-Install debugging tools:
-```bash
-# Ubuntu/Debian
-sudo apt install openocd gdb-multiarch
-
-# macOS
-brew install openocd arm-none-eabi-gdb
-```
-
-### Hardware Setup
-
-1. **Connect JTAG/SWD debugger** (ST-Link, J-Link, etc.) to your ARM board
-2. **Update OpenOCD configuration** in `debug-openocd.sh` for your hardware:
-   ```bash
-   # Example for STM32F103 with ST-Link
-   -f interface/stlink.cfg \
-   -f target/stm32f1x.cfg \
-   
-   # Example for STM32F4 with J-Link
-   -f interface/jlink.cfg \
-   -f target/stm32f4x.cfg \
-   ```
-
-3. **Start OpenOCD JTAG server:**
-   ```bash
-   ./debug-openocd.sh
-   ```
-
-4. **Connect GDB** (modify port 1234 → 3333 in debug scripts)
 
 ## JTAG Features Enabled
 
@@ -203,29 +169,36 @@ print ITERATION_COUNT
 - Ensure building in debug mode (not --release)
 - Check debug symbols: `file target/thumbv7m-none-eabi/debug/kernel`
 
-**ARM GDB not found:**
-- Install: `sudo apt install gdb-multiarch arm-none-eabi-gdb`
-- Or use: `gdb-multiarch` instead of `arm-none-eabi-gdb`
+### QEMU Debugging Issues
 
-### Hardware Debugging Issues
+**QEMU won't start with JTAG:**
+- Check port 1234 is not in use: `ss -an | grep 1234`
+- Kill existing QEMU: `pkill qemu-system-arm`
 
-**OpenOCD connection failed:**
-- Check debugger connection and power
-- Verify correct interface/target configuration
-- Try lower adapter speed: `-c "adapter speed 100"`
+**GDB can't connect:**
+- Ensure QEMU is running with `-gdb tcp::1234 -S`
+- Check firewall settings for localhost:1234
 
-**Target not responding:**
-- Check target power and reset
-- Try different transport: `hla_swd` vs `jtag`
-- Verify target configuration matches your hardware
+**No debug symbols:**
+- Ensure building in debug mode (not --release)
+- Check debug symbols: `file target/thumbv7m-none-eabi/debug/kernel`
+
+**GDB architecture errors:**
+- Use `set architecture armv7` instead of `arm`
+- Install GDB with ARM support: `sudo apt install gdb-multiarch`
+
+**"Exec format error":**
+- Use `continue` instead of `run` in GDB
+- Never try to execute ARM binary directly on host
 
 ## Files
 
+- `qemu-arm.sh` - Standard UART interface without debugging
 - `qemu-jtag-debug.sh` - Start QEMU with JTAG debugging
-- `debug-rust-gdb.sh` - Connect GDB with Rust support  
-- `debug-gdb.sh` - Alternative GDB connection script
-- `debug-openocd.sh` - OpenOCD setup for real hardware
-- `JTAG-DEBUG.md` - This documentation
+- `debug-interactive.sh` - Connect GDB with interactive session
+- `.gdbinit` - GDB configuration for ARM debugging
+- `JTAG-DEBUG.md` - This comprehensive documentation
+- `JTAG-QUICKSTART.md` - Quick start guide and troubleshooting
 
 ## Next Steps
 

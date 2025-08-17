@@ -63,14 +63,6 @@ define qemu-connect
     printf "Connected to QEMU JTAG\n"
 end
 
-# Connect to OpenOCD shortcut  
-define openocd-connect
-    target remote localhost:3333
-    monitor reset halt
-    load
-    printf "Connected to OpenOCD JTAG\n"
-end
-
 # Display banner
 printf "\n=== ARM RTOS GDB Configuration Loaded ===\n"
 printf "Custom commands available:\n"
@@ -79,5 +71,4 @@ printf "  uart-info        - Show UART interface state\n"
 printf "  scheduler-info   - Show scheduler statistics\n"
 printf "  rtos-breakpoints - Set common RTOS breakpoints\n"
 printf "  qemu-connect     - Connect to QEMU JTAG (port 1234)\n"
-printf "  openocd-connect  - Connect to OpenOCD JTAG (port 3333)\n"
 printf "==========================================\n\n"
