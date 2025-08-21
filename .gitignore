@@ -18,3 +18,4 @@ Thumbs.db
 
 # QEMU runtime files
 *.log
+kernel/target/

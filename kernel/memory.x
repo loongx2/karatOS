@@ -7,16 +7,13 @@ _stack_start = ORIGIN(RAM) + LENGTH(RAM);
 ENTRY(_start)
 
 SECTIONS {
-    . = 0x80000000;
+    . = ORIGIN(RAM);
     
     .text.init : {
         KEEP(*(.text._start));
-    } > RAM
-    
-    .text : {
         *(.text .text.*);
     } > RAM
-
+    
     .rodata : {
         *(.rodata .rodata.*);
     } > RAM
@@ -29,4 +26,9 @@ SECTIONS {
         *(.bss .bss.*);
         *(COMMON);
     } > RAM
+    
+    /* Discard unwanted sections */
+    /DISCARD/ : {
+        *(.eh_frame);
+    }
 }

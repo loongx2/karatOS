@@ -1,17 +1,6 @@
-[target.armv7a-none-eabi]
-rustflags = [
-  "-C", "linker=rust-lld",
-  "-C", "link-arg=-Tmemory-arm.x",
-  "-C", "link-arg=-Tlink.x",
-  "-C", "link-arg=--nmagic",
-]
-
 [target.riscv32imac-unknown-none-elf]
 rustflags = [
   "-C", "linker=rust-lld",
   "-C", "link-arg=-Tmemory.x",
   "-C", "link-arg=--nmagic",
 ]
-
-[build]
-# Don't set default target here to avoid issues
