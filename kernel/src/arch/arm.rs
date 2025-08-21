@@ -1,21 +1,25 @@
-// ARM Cortex-M minimal context switch stub
+//! ARM Architecture Implementation
+//! ARM-specific functionality and hardware abstraction
 
 #[cfg(feature = "arm")]
 use cortex_m;
+#[cfg(feature = "arm")]
+use core::fmt::Write;
 
 #[no_mangle]
 pub extern "C" fn arch_init() {
-    // Setup stack, interrupts, etc.
+    // ARM-specific initialization
     #[cfg(feature = "arm")]
     {
-        // Basic ARM Cortex-M initialization
-        // Enable NVIC if needed
+        // Initialize ARM Cortex-M features
+        // NVIC, SCB, etc. configuration goes here
     }
 }
 
 #[no_mangle]
 pub extern "C" fn context_switch() {
-    // Save/restore context (stub)
+    // ARM context switch implementation
+    // Save/restore CPU state
 }
 
 #[inline(always)]
@@ -30,13 +34,37 @@ pub fn enable_interrupts() {
     unsafe { cortex_m::interrupt::enable(); }
 }
 
-#[inline(always)]
 pub fn arch_println(s: &str) {
-    // Basic semihosting output if feature enabled
+    // ARM-specific debug output
+    // This would typically use semihosting or a debug UART
     #[cfg(feature = "arm")]
     {
+        // Use semihosting for debug output
         use cortex_m_semihosting::hio;
-        if let Ok(mut h) = hio::hstdout() { use core::fmt::Write; let _ = h.write_str(s); let _ = h.write_str("\n"); }
+        if let Ok(mut stdout) = hio::hstdout() {
+            let _ = writeln!(stdout, "{}", s);
+        }
     }
-    let _ = s; // suppress unused warning without feature
+    #[cfg(not(feature = "arm"))]
+    {
+        let _ = s; // Suppress unused warning
+    }
+}
+
+#[inline(always)]
+pub fn arch_yield() {
+    #[cfg(feature = "arm")]
+    cortex_m::asm::wfi(); // Wait for interrupt
+}
+
+#[inline(always)]
+pub fn arch_shutdown() -> ! {
+    #[cfg(feature = "arm")]
+    {
+        use cortex_m_semihosting::debug;
+        debug::exit(debug::EXIT_SUCCESS);
+        loop {} // This line is unreachable but needed for type safety
+    }
+    #[cfg(not(feature = "arm"))]
+    loop {}
 }

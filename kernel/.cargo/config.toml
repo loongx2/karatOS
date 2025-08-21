@@ -6,5 +6,15 @@ rustflags = [
   "-C", "link-arg=--nmagic",
 ]
 
+[target.riscv32imac-unknown-none-elf]
+rustflags = [
+  "-C", "linker=rust-lld",
+  "-C", "link-arg=-Tmemory.x",
+  "-C", "link-arg=-Tlink.x",
+  "-C", "link-arg=--nmagic",
+  "-C", "link-arg=--eh-frame-hdr",
+  "-C", "link-arg=--gc-sections",
+]
+
 [build]
 # Don't set default target here to avoid issues

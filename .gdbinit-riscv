@@ -1,0 +1,113 @@
+# GDB Configuration for RISC-V RTOS Debugging
+# This file provides GDB configuration for both ARM and RISC-V targets
+
+# Set RISC-V architecture when debugging RISC-V target
+define setup-riscv
+    set architecture riscv:rv32
+    set $pc = 0x20000000
+    target remote :1234
+    
+    # Useful RISC-V specific commands
+    echo \n=== RISC-V Debug Configuration Loaded ===\n
+    echo Use 'riscv-regs' to show RISC-V specific registers\n
+    echo Use 'riscv-csr' to examine Control and Status Registers\n
+    echo \n
+end
+
+# Show RISC-V specific registers
+define riscv-regs
+    printf "=== RISC-V Core Registers ===\n"
+    info registers
+    printf "\n=== RISC-V PC and Stack ===\n"
+    printf "PC: 0x%08x\n", $pc
+    printf "SP: 0x%08x\n", $sp
+    printf "RA: 0x%08x\n", $ra
+    printf "GP: 0x%08x\n", $gp
+    printf "TP: 0x%08x\n", $tp
+end
+
+# Show RISC-V Control and Status Registers (simplified)
+define riscv-csr
+    printf "=== RISC-V CSR Registers ===\n"
+    printf "Note: CSR access may require privileged mode\n"
+    # These would need proper CSR access implementation
+    printf "mstatus, mtvec, mepc, mcause - not directly accessible via GDB\n"
+end
+
+# Memory examination helpers
+define examine-stack
+    printf "=== Stack Contents (16 words) ===\n"
+    x/16wx $sp
+end
+
+define examine-code
+    printf "=== Code at PC (10 instructions) ===\n"
+    x/10i $pc
+end
+
+# UART examination for QEMU virt machine
+define examine-uart
+    printf "=== UART Registers (QEMU virt @ 0x10000000) ===\n"
+    printf "TX/RX FIFO: 0x%02x\n", *((char*)0x10000000)
+    printf "Line Status: 0x%02x\n", *((char*)0x10000005)
+end
+
+# Memory layout helpers for QEMU virt
+define show-memory-layout
+    printf "=== QEMU RISC-V virt Memory Layout ===\n"
+    printf "ROM:        0x00001000 - 0x00011fff\n"
+    printf "UART:       0x10000000 - 0x10000fff\n"
+    printf "RTC:        0x101000000\n"
+    printf "RAM:        0x80000000 - 0x87ffffff (128MB)\n"
+    printf "Flash:      0x20000000 - 0x201fffff (2MB)\n"
+    printf "\nCurrent SP: 0x%08x\n", $sp
+    printf "Current PC: 0x%08x\n", $pc
+end
+
+# Task debugging helpers
+define show-task-info
+    printf "=== RTOS Task Information ===\n"
+    printf "Note: Task information depends on RTOS internal structures\n"
+    # These would need to match your actual task structure
+end
+
+# Common debugging workflow
+define debug-workflow
+    printf "=== Common RISC-V Debugging Workflow ===\n"
+    printf "1. setup-riscv          - Configure for RISC-V debugging\n"
+    printf "2. show-memory-layout    - Display memory map\n"
+    printf "3. riscv-regs           - Show RISC-V registers\n"
+    printf "4. examine-code         - Disassemble at PC\n"
+    printf "5. examine-stack        - Show stack contents\n"
+    printf "6. examine-uart         - Check UART status\n"
+    printf "7. continue             - Continue execution\n"
+    printf "8. stepi                - Step one instruction\n"
+    printf "\nBreakpoint examples:\n"
+    printf "  break main            - Break at main function\n"
+    printf "  break *0x20000000     - Break at address\n"
+    printf "  watch variable        - Watch variable changes\n"
+end
+
+# Auto-setup for RISC-V when loading RISC-V binary
+define hook-file
+    if $_streq($arg0, "target/riscv32imac-unknown-none-elf/debug/kernel")
+        setup-riscv
+    end
+end
+
+# Display helpful information on startup
+printf "\n=== Multi-Architecture GDB Configuration ===\n"
+printf "ARM debugging:   Use existing .gdbinit setup\n"
+printf "RISC-V debugging: Use 'setup-riscv' command\n"
+printf "Help:            Use 'debug-workflow' for common commands\n"
+printf "\nTo debug RISC-V: \n"
+printf "1. Start QEMU with: ./qemu-riscv32.sh debug\n"
+printf "2. In GDB: setup-riscv\n"
+printf "3. Set breakpoints and continue\n\n"
+
+# Set common useful options
+set confirm off
+set pagination off
+set print pretty on
+set print array on
+set print address on

@@ -4,20 +4,37 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# ARM dependencies
 cortex-m-rt = { version = "0.7", default-features = false, optional = true }
 cortex-m-semihosting = { version = "0.5", optional = true }
 cortex-m = { version = "0.7", optional = true }
-panic-halt = { version = "0.2", optional = true }
+
+# RISC-V dependencies
 riscv-rt = { version = "0.11", optional = true }
 riscv = { version = "0.11", optional = true }
+
+# Common dependencies
+panic-halt = { version = "0.2" }
 nb = { version = "1.0", optional = true }
-heapless = { version = "0.8", optional = true }
+heapless = { version = "0.8" }
 
 [features]
-arm = ["cortex-m-rt", "cortex-m-semihosting", "cortex-m", "panic-halt", "nb", "heapless"]
-riscv = ["riscv-rt", "dep:riscv", "nb", "heapless"]
+# Architecture features
+arm = ["cortex-m-rt", "cortex-m-semihosting", "cortex-m", "nb"]
+riscv = ["riscv-rt", "dep:riscv", "nb"]
+
+# Default feature set
 default = []
 
 [[bin]]
 name = "kernel"
 path = "src/main.rs"
+
+[profile.dev]
+panic = "abort"
+lto = false
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "s"
