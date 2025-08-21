@@ -1,7 +1,7 @@
-[target.thumbv7m-none-eabi]
-runner = "qemu-system-arm -M lm3s6965evb -nographic -semihosting-config enable=on,target=native -kernel"
+[target.armv7a-none-eabi]
 rustflags = [
   "-C", "linker=rust-lld",
+  "-C", "link-arg=-Tmemory-arm.x",
   "-C", "link-arg=-Tlink.x",
   "-C", "link-arg=--nmagic",
 ]
@@ -10,10 +10,7 @@ rustflags = [
 rustflags = [
   "-C", "linker=rust-lld",
   "-C", "link-arg=-Tmemory.x",
-  "-C", "link-arg=-Tlink.x",
   "-C", "link-arg=--nmagic",
-  "-C", "link-arg=--eh-frame-hdr",
-  "-C", "link-arg=--gc-sections",
 ]
 
 [build]

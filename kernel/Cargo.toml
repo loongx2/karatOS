@@ -9,8 +9,7 @@ cortex-m-rt = { version = "0.7", default-features = false, optional = true }
 cortex-m-semihosting = { version = "0.5", optional = true }
 cortex-m = { version = "0.7", optional = true }
 
-# RISC-V dependencies
-riscv-rt = { version = "0.11", optional = true }
+# RISC-V dependencies - avoiding riscv-rt to prevent linker conflicts
 riscv = { version = "0.11", optional = true }
 
 # Common dependencies
@@ -21,7 +20,7 @@ heapless = { version = "0.8" }
 [features]
 # Architecture features
 arm = ["cortex-m-rt", "cortex-m-semihosting", "cortex-m", "nb"]
-riscv = ["riscv-rt", "dep:riscv", "nb"]
+riscv = ["dep:riscv", "nb"]
 
 # Default feature set
 default = []

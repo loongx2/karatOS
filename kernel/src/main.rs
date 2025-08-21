@@ -14,8 +14,6 @@ use drivers::DriverManager;
 // Platform-specific entry point handling
 #[cfg(target_arch = "arm")]
 use cortex_m_rt::entry;
-#[cfg(target_arch = "riscv32")]
-use riscv_rt::entry;
 
 // Platform-specific panic handlers
 use panic_halt as _;
@@ -109,8 +107,22 @@ fn kernel_main_loop() {
 }
 
 /// Main kernel entry point - works for all architectures
+// ARM entry point using cortex-m-rt
+#[cfg(target_arch = "arm")]
 #[entry]
 fn main() -> ! {
+    kernel_entry()
+}
+
+// RISC-V entry point - custom implementation
+#[cfg(target_arch = "riscv32")]
+#[no_mangle]
+#[link_section = ".text._start"]
+pub extern "C" fn _start() -> ! {
+    kernel_entry()
+}
+
+fn kernel_entry() -> ! {
     // Initialize kernel
     match kernel_init() {
         Ok(()) => {
