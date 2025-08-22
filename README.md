@@ -1,15 +1,36 @@
-# Multi-Architecture Async RTOS
+# Multi-Architecture Rust RTOS
 
-Advanced experimental Rust RTOS implementing priority-based cooperative multitasking with event-driven scheduling. Supports both ARM Cortex-M and RISC-V architectures with comprehensive debugging capabilities.
+Advanced multi-platform Rust RTOS with support for ARM Cortex-M and RISC-V architectures. Features modular architecture, device-tree-driven configuration, and comprehensive QEMU emulation support.
 
-## Features
+## 🚀 Quick Start
 
-- **Multi-Architecture**: ARM Cortex-M and RISC-V support
-- **Async Event-Driven**: Priority-based cooperative multitasking
-- **Interactive UART**: Command interface with status, logging, and control
-- **Circular Logging**: Silent background logging with on-demand viewing
-- **Professional Debugging**: JTAG/GDB support for both architectures
-- **No Deadlocks**: Mutually exclusive events, single-threaded async design
+```bash
+# Test both platforms
+./test-platforms.sh
+
+# RISC-V (Fully Functional)
+cd kernel
+cargo build --target riscv32imac-unknown-none-elf --bin kernel-riscv-simple
+qemu-system-riscv32 -machine virt -cpu rv32 -m 128M -nographic -bios none -kernel target/riscv32imac-unknown-none-elf/debug/kernel-riscv-simple
+```
+
+**📖 Complete Guide**: See [`LAUNCH-GUIDE.md`](LAUNCH-GUIDE.md) for comprehensive build and run instructions.
+
+## ✨ Features
+
+- **✅ RISC-V Platform**: Fully functional with QEMU emulation
+- **⚠️ ARM Platform**: Build success, runtime debugging in progress  
+- **🏗️ Modular Architecture**: Platform-agnostic kernel with device-specific drivers
+- **🔧 Device Tree Support**: Hardware abstraction with automatic driver initialization
+- **🚀 QEMU Integration**: Complete emulation environment for development
+- **🧪 Comprehensive Testing**: Automated validation scripts for both platforms
+
+## 🎯 Platform Status
+
+| Platform | Build | QEMU | Output | Status |
+|----------|-------|------|--------|---------|
+| **RISC-V 32-bit** | ✅ | ✅ | ✅ "RISC-V kernel started!" | **WORKING** |
+| **ARM Cortex-M** | ✅ | ⚠️ | ❌ Runtime issues | Build Success |
 
 ## Build Targets
 
@@ -37,14 +58,47 @@ sudo apt install openocd gdb-multiarch
 sudo apt install gcc-riscv64-unknown-elf gdb-multiarch
 ```
 
-## Quick Start
+## 🚀 Quick Launch Commands
+
+### Automated Testing
+```bash
+./test-platforms.sh      # Test both platforms
+./test-all.sh           # Comprehensive test suite
+```
+
+### Platform-Specific Commands
+
+#### RISC-V (Recommended - Fully Working)
+```bash
+cd kernel
+./kernel.sh test-riscv   # Build and run RISC-V
+./qemu/riscv/run.sh     # Alternative script
+
+# Manual command
+cargo build --target riscv32imac-unknown-none-elf --bin kernel-riscv-simple
+qemu-system-riscv32 -machine virt -cpu rv32 -m 128M -nographic -bios none -kernel target/riscv32imac-unknown-none-elf/debug/kernel-riscv-simple
+```
+
+#### ARM (Build Success)
+```bash
+cd kernel
+./kernel.sh build-arm    # Build ARM kernel
+./qemu/arm/run.sh       # Run ARM (has runtime issues)
+```
 
 ### Build All Architectures
 ```bash
 ./build.sh all          # Build both ARM and RISC-V
-./build.sh arm           # Build ARM only
+./build.sh arm           # Build ARM only  
 ./build.sh riscv         # Build RISC-V only
 ```
+
+## 📚 Documentation
+
+- **[LAUNCH-GUIDE.md](LAUNCH-GUIDE.md)** - Complete build and run instructions
+- **[RISC-V-GUIDE.md](RISC-V-GUIDE.md)** - RISC-V development guide
+- **[kernel/TEST_RESULTS.md](kernel/TEST_RESULTS.md)** - Test documentation
+- **[JTAG-QUICKSTART.md](JTAG-QUICKSTART.md)** - Hardware debugging setup
 
 ### Run Systems
 ```bash
