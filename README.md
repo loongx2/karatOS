@@ -1,6 +1,18 @@
 # karatOS - Multi-Architecture Rust RTOS
 
-Advanced multi-platform Rust RTOS with support for ARM Cortex-M and RISC-V architectures. Features modular architecture, device-tree-driven configuration, and comprehensive QEMU emulation support.
+Advanced multi-platform Rust RTOS with support for ARM Cortex-M and RISC-V architectures. Features modular architecture, d### Architecture Details
+
+### ARM Implementation
+- **Target**: LM3S6965EVB (QEMU)
+- **UART**: 0x4000C000 (115200 baud)
+- **Features**: Proper ARM Cortex-M vector table, direct hardware access
+- **Memory**: 256KB Flash, 64KB RAM
+- **Vector Table**: Located at 0x00000000 with proper Thumb mode handlers
+- **Status**: ✅ Fully functional with UART output
+
+### RISC-V Implementation  
+- **Target**: QEMU virt machine
+- **UART**: 0x10000000 (16550 compatible)driven configuration, and comprehensive QEMU emulation support.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
@@ -16,7 +28,12 @@ Advanced multi-platform Rust RTOS with support for ARM Cortex-M and RISC-V archi
 # RISC-V (Fully Functional)
 cd kernel
 cargo build --target riscv32imac-unknown-none-elf --bin kernel-riscv-simple
-qemu-system-riscv32 -machine virt -cpu rv32 -m 128M -nographic -bios none -kernel target/riscv32imac-unknown-none-elf/debug/kernel-riscv-simple
+qemu-system-riscv32 -machine virt -nographic -bios none -kernel target/riscv32imac-unknown-none-elf/debug/kernel-riscv-simple
+
+# ARM (Fully Functional)  
+cd kernel
+cargo build --target thumbv7m-none-eabi --bin kernel-arm-working
+qemu-system-arm -M lm3s6965evb -kernel target/thumbv7m-none-eabi/debug/kernel-arm-working -nographic
 ```
 
 **📖 Complete Guide**: See [`LAUNCH-GUIDE.md`](LAUNCH-GUIDE.md) for comprehensive build and run instructions.
@@ -24,7 +41,7 @@ qemu-system-riscv32 -machine virt -cpu rv32 -m 128M -nographic -bios none -kerne
 ## ✨ Features
 
 - **✅ RISC-V Platform**: Fully functional with QEMU emulation
-- **⚠️ ARM Platform**: Build success, runtime debugging in progress  
+- **✅ ARM Platform**: Fully functional with proper vector table implementation
 - **🏗️ Modular Architecture**: Platform-agnostic kernel with device-specific drivers
 - **🔧 Device Tree Support**: Hardware abstraction with automatic driver initialization
 - **🚀 QEMU Integration**: Complete emulation environment for development
@@ -35,7 +52,23 @@ qemu-system-riscv32 -machine virt -cpu rv32 -m 128M -nographic -bios none -kerne
 | Platform | Build | QEMU | Output | Status |
 |----------|-------|------|--------|---------|
 | **RISC-V 32-bit** | ✅ | ✅ | ✅ "RISC-V kernel started!" | **WORKING** |
-| **ARM Cortex-M** | ✅ | ⚠️ | ❌ Runtime issues | Build Success |
+| **ARM Cortex-M** | ✅ | ✅ | ✅ "ARM kernel started!" + details | **WORKING** |
+
+### Latest Test Results (August 22, 2025)
+
+**RISC-V Output:**
+```
+RISC-V kernel started!
+```
+
+**ARM Output:**
+```
+Timer with period zero, disabling
+ARM kernel started!
+Architecture: ARM Cortex-M3
+Board: LM3S6965EVB
+karatOS ARM platform working!
+```
 
 ## Build Targets
 
@@ -84,11 +117,15 @@ cargo build --target riscv32imac-unknown-none-elf --bin kernel-riscv-simple
 qemu-system-riscv32 -machine virt -cpu rv32 -m 128M -nographic -bios none -kernel target/riscv32imac-unknown-none-elf/debug/kernel-riscv-simple
 ```
 
-#### ARM (Build Success)
+#### ARM (Fully Working)
 ```bash
 cd kernel
+cargo build --target thumbv7m-none-eabi --bin kernel-arm-working
+qemu-system-arm -M lm3s6965evb -kernel target/thumbv7m-none-eabi/debug/kernel-arm-working -nographic
+
+# Alternative scripts
 ./kernel.sh build-arm    # Build ARM kernel
-./qemu/arm/run.sh       # Run ARM (has runtime issues)
+./qemu/arm/run.sh       # Run ARM kernel
 ```
 
 ### Build All Architectures
