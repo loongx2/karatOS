@@ -1,6 +1,11 @@
-# Multi-Architecture Rust RTOS
+# karatOS - Multi-Architecture Rust RTOS
 
 Advanced multi-platform Rust RTOS with support for ARM Cortex-M and RISC-V architectures. Features modular architecture, device-tree-driven configuration, and comprehensive QEMU emulation support.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
+[![RISC-V](https://img.shields.io/badge/RISC--V-32bit-blue.svg)](https://riscv.org/)
+[![ARM](https://img.shields.io/badge/ARM-Cortex--M-green.svg)](https://developer.arm.com/)
 
 ## 🚀 Quick Start
 
@@ -193,5 +198,20 @@ Both versions support interactive UART commands:
 - [ ] Multi-core support exploration
 - Add timer interrupt to generate events.
 - Implement context switching (store/restore registers) in assembly.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 🙏 Acknowledgments
+
+- Rust Embedded Working Group for excellent embedded Rust tooling
+- RISC-V Foundation for the open instruction set architecture
+- ARM for Cortex-M architecture documentation
+- QEMU project for comprehensive emulation support
 - Add UART drivers for logging.
 - Add priority scheduling and sleep API.

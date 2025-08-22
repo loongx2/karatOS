@@ -2,6 +2,13 @@
 members = ["kernel"]
 resolver = "2"
 
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["karatOS Contributors"]
+repository = "https://github.com/loongx2/karatOS"
+
 [profile.dev]
 panic = "abort"
 

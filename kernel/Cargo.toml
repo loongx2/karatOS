@@ -1,7 +1,13 @@
 [package]
-name = "kernel"
+name = "karatos-kernel"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+authors = ["karatOS Contributors"]
+description = "Multi-architecture Rust RTOS kernel for ARM and RISC-V"
+repository = "https://github.com/loongx2/karatOS"
+keywords = ["rtos", "embedded", "arm", "riscv", "no-std"]
+categories = ["embedded", "os"]
 
 [workspace]
 # Empty workspace to avoid conflicts with parent workspace
