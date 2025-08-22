@@ -1,0 +1,9 @@
+/* LM3S6965EVB memory layout - Cortex-M3 compatible */
+MEMORY
+{
+  /* Flash memory begins at 0x00000000 and has a size of 256KB */
+  FLASH : ORIGIN = 0x00000000, LENGTH = 256K
+  
+  /* RAM begins at 0x20000000 and has a size of 64KB */
+  RAM : ORIGIN = 0x20000000, LENGTH = 64K
+}
