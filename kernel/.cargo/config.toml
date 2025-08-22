@@ -8,6 +8,6 @@ rustflags = [
 [target.thumbv7m-none-eabi]
 rustflags = [
   "-C", "linker=rust-lld",
-  "-C", "link-arg=-Tmemory-arm-working.x",
+  "-C", "link-arg=-Tmemory-arm.x",
   "-C", "link-arg=--nmagic",
 ]
