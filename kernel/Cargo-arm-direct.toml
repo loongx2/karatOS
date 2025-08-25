@@ -1,0 +1,14 @@
+[[bin]]
+name = "kernel-arm-direct"
+path = "src/main_simple_arm_direct.rs"
+
+[dependencies]
+# No dependencies - direct hardware access
+
+[profile.dev]
+panic = "abort"
+lto = true
+
+[profile.release]
+panic = "abort"
+lto = true

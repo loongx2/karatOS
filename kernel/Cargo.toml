@@ -9,16 +9,14 @@ repository = "https://github.com/loongx2/karatOS"
 keywords = ["rtos", "embedded", "arm", "riscv", "no-std"]
 categories = ["embedded", "os"]
 
-[workspace]
-# Empty workspace to avoid conflicts with parent workspace
-
 [dependencies]
 # ARM dependencies
 cortex-m-rt = { version = "0.7", default-features = false, optional = true }
 cortex-m-semihosting = { version = "0.5", optional = true }
 cortex-m = { version = "0.7", optional = true }
 
-# RISC-V dependencies - avoiding riscv-rt to prevent linker conflicts
+# RISC-V dependencies 
+riscv-rt = { version = "0.12", optional = true }
 riscv = { version = "0.11", optional = true }
 
 # Common dependencies
@@ -29,22 +27,18 @@ heapless = { version = "0.8" }
 [features]
 # Architecture features
 arm = ["cortex-m-rt", "cortex-m-semihosting", "cortex-m", "nb"]
-riscv = ["dep:riscv", "nb"]
+riscv = ["riscv-rt", "dep:riscv", "nb"]
 
 # Default feature set
 default = []
 
+[lib]
+name = "kernel_lib"
+path = "src/lib.rs"
+
 [[bin]]
 name = "kernel"
 path = "src/main.rs"
-
-[[bin]]
-name = "kernel-riscv-simple"
-path = "src/main_simple_riscv.rs"
-
-[[bin]]
-name = "kernel-arm-working"
-path = "src/main_simple_arm.rs"
 
 [profile.dev]
 panic = "abort"

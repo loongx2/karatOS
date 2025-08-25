@@ -1,0 +1,31 @@
+[build]
+target = "riscv32imac-unknown-none-elf"
+target-dir = "target/riscv"
+
+[cargo]
+features = ["riscv"]
+
+[board]
+name = "QEMU-virt"
+
+[architecture]
+name = "RISC-V RV32IMAC"
+target = "riscv32imac-unknown-none-elf"
+
+[memory]
+flash_start = "0x80000000"
+flash_size = "128M"
+ram_start = "0x80000000"
+ram_size = "128M"
+
+[test]
+runner = "qemu-system-riscv32"
+runner_args = [
+    "-machine", "virt",
+    "-cpu", "rv32",
+    "-smp", "1",
+    "-m", "128M",
+    "-nographic",
+    "-bios", "none",
+    "-kernel"
+]

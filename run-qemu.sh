@@ -30,8 +30,10 @@ log_error() {
 
 run_arm_qemu() {
     log_info "🔧 Building ARM kernel..."
-    cd kernel
-    cargo build --bin kernel-arm-working --target thumbv7m-none-eabi --features arm --quiet
+    ./build-kernel.sh --arch arm >/dev/null 2>&1 || {
+        log_error "ARM kernel build failed"
+        return 1
+    }
     
     log_info "🚀 Running ARM kernel in QEMU (LM3S6965EVB)..."
     log_info "Expected output: ARM kernel initialization messages"
@@ -41,19 +43,20 @@ run_arm_qemu() {
         -machine lm3s6965evb \
         -cpu cortex-m3 \
         -nographic \
-        -kernel target/thumbv7m-none-eabi/debug/kernel-arm-working \
+        -kernel kernel/target/thumbv7em-none-eabi/debug/kernel \
         2>/dev/null) || echo "[TIMEOUT] ARM kernel execution completed"
     
     echo ""
     echo "----------------------------------------"
     log_success "✅ ARM kernel executed successfully in QEMU"
-    cd ..
 }
 
 run_riscv_qemu() {
     log_info "🔧 Building RISC-V kernel..."
-    cd kernel
-    cargo build --bin kernel-riscv-simple --target riscv32imac-unknown-none-elf --features riscv --quiet
+    ./build-kernel.sh --arch riscv >/dev/null 2>&1 || {
+        log_error "RISC-V kernel build failed"
+        return 1
+    }
     
     log_info "🚀 Running RISC-V kernel in QEMU (virt machine)..."
     log_info "Expected output: 'RISC-V kernel started!' via UART"
@@ -66,13 +69,12 @@ run_riscv_qemu() {
         -m 128M \
         -nographic \
         -bios none \
-        -kernel target/riscv32imac-unknown-none-elf/debug/kernel-riscv-simple \
+        -kernel kernel/target/riscv32imac-unknown-none-elf/debug/kernel \
         2>/dev/null) || echo "[TIMEOUT] RISC-V kernel execution completed"
     
     echo ""
     echo "----------------------------------------"
     log_success "✅ RISC-V kernel executed successfully in QEMU"
-    cd ..
 }
 
 check_qemu() {

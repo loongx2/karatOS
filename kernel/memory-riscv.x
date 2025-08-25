@@ -1,3 +1,4 @@
+/* Simple RISC-V memory layout for QEMU virt machine */
 MEMORY {
     RAM : ORIGIN = 0x80000000, LENGTH = 128M
 }
@@ -7,13 +8,9 @@ _stack_start = ORIGIN(RAM) + LENGTH(RAM);
 ENTRY(_start)
 
 SECTIONS {
-    . = 0x80000000;
-    
-    .text.init : {
-        KEEP(*(.text._start));
-    } > RAM
-    
     .text : {
+        KEEP(*(.init));
+        KEEP(*(.init.rust));
         *(.text .text.*);
     } > RAM
 
@@ -25,8 +22,12 @@ SECTIONS {
         *(.data .data.*);
     } > RAM
 
-    .bss : {
+    .bss (NOLOAD) : {
         *(.bss .bss.*);
         *(COMMON);
     } > RAM
+
+    /DISCARD/ : {
+        *(.eh_frame);
+    }
 }

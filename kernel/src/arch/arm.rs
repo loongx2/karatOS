@@ -1,70 +1,67 @@
-//! ARM Architecture Implementation
-//! ARM-specific functionality and hardware abstraction
+//! ARM Cortex-M specific functionality and hardware abstraction
 
-#[cfg(feature = "arm")]
-use cortex_m;
-#[cfg(feature = "arm")]
-use core::fmt::Write;
+use crate::arch::{ArchInit, MemoryLayout};
+use cortex_m_semihosting::hprintln;
 
-#[no_mangle]
-pub extern "C" fn arch_init() {
-    // ARM-specific initialization
-    #[cfg(feature = "arm")]
-    {
-        // Initialize ARM Cortex-M features
-        // NVIC, SCB, etc. configuration goes here
+/// ARM architecture implementation
+pub struct ArmArch;
+
+impl ArchInit for ArmArch {
+    fn init() {
+        // Initialize ARM-specific features
+        Self::irq_init();
+        Self::setup_memory_protection();
+    }
+    
+    fn irq_init() {
+        // Initialize interrupts for ARM
+        // For now, just enable basic interrupt handling
+    }
+    
+    fn setup_memory_protection() {
+        // Set up MPU if available
+        // For now, basic setup
     }
 }
 
-#[no_mangle]
-pub extern "C" fn context_switch() {
-    // ARM context switch implementation
-    // Save/restore CPU state
-}
+/// ARM memory layout implementation
+pub struct ArmMemoryLayout;
 
-#[inline(always)]
-pub fn disable_interrupts() {
-    #[cfg(feature = "arm")]
-    cortex_m::interrupt::disable();
-}
-
-#[inline(always)]
-pub fn enable_interrupts() {
-    #[cfg(feature = "arm")]
-    unsafe { cortex_m::interrupt::enable(); }
-}
-
-pub fn arch_println(s: &str) {
-    // ARM-specific debug output
-    // This would typically use semihosting or a debug UART
-    #[cfg(feature = "arm")]
-    {
-        // Use semihosting for debug output
-        use cortex_m_semihosting::hio;
-        if let Ok(mut stdout) = hio::hstdout() {
-            let _ = writeln!(stdout, "{}", s);
-        }
+impl MemoryLayout for ArmMemoryLayout {
+    fn ram_start() -> usize {
+        0x20000000 // Standard ARM Cortex-M RAM start
     }
-    #[cfg(not(feature = "arm"))]
-    {
-        let _ = s; // Suppress unused warning
+    
+    fn ram_size() -> usize {
+        64 * 1024 // 64KB RAM for LM3S6965
+    }
+    
+    fn flash_start() -> usize {
+        0x00000000 // Flash start
+    }
+    
+    fn flash_size() -> usize {
+        256 * 1024 // 256KB Flash for LM3S6965
+    }
+    
+    fn stack_top() -> usize {
+        Self::ram_start() + Self::ram_size()
+    }
+    
+    fn heap_start() -> usize {
+        Self::ram_start() + (Self::ram_size() / 2) // Middle of RAM
+    }
+    
+    fn heap_size() -> usize {
+        Self::ram_size() / 4 // Quarter of RAM for heap
     }
 }
 
-#[inline(always)]
-pub fn arch_yield() {
-    #[cfg(feature = "arm")]
-    cortex_m::asm::wfi(); // Wait for interrupt
-}
-
-#[inline(always)]
-pub fn arch_shutdown() -> ! {
+/// Early debug output for ARM
+pub fn early_println(msg: &str) {
     #[cfg(feature = "arm")]
     {
-        use cortex_m_semihosting::debug;
-        debug::exit(debug::EXIT_SUCCESS);
-        loop {} // This line is unreachable but needed for type safety
+        // Use semihosting for early debug output
+        let _ = hprintln!("{}", msg);
     }
-    #[cfg(not(feature = "arm"))]
-    loop {}
 }

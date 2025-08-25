@@ -16,7 +16,10 @@ fn main() {
     } else if target.starts_with("arm") || target.starts_with("thumb") {
         configure_arm_build(out);
     } else {
-        panic!("Unsupported target architecture: {}", target);
+        // For host targets (x86_64, etc.) used in testing, do nothing
+        // This allows cargo test to work on development machines
+        println!("cargo:rustc-cfg=host_target");
+        return;
     }
     
     println!("cargo:rustc-link-search={}", out.display());
@@ -28,18 +31,14 @@ fn configure_riscv_build(out: &PathBuf) {
     println!("cargo:rustc-cfg=riscv_target");
     
     // Use RISC-V specific linker script
-    let riscv_linker_script = std::fs::read("../memory-riscv-minimal.x")
-        .or_else(|_| std::fs::read("../memory-riscv-simple.x"))
-        .or_else(|_| std::fs::read("memory-riscv.x"))
-        .expect("Failed to read RISC-V linker script");
+    let riscv_linker_script = std::fs::read("memory-riscv.x")
+        .expect("Failed to read RISC-V linker script memory-riscv.x");
         
     File::create(out.join("memory.x"))
         .unwrap()
         .write_all(&riscv_linker_script)
         .unwrap();
     
-    println!("cargo:rerun-if-changed=../memory-riscv-minimal.x");
-    println!("cargo:rerun-if-changed=../memory-riscv-simple.x");
     println!("cargo:rerun-if-changed=memory-riscv.x");
 }
 
@@ -48,10 +47,13 @@ fn configure_arm_build(out: &PathBuf) {
     println!("cargo:rustc-cfg=arm_target");
     
     // Use ARM specific linker script
+    let arm_linker_script = std::fs::read("memory-arm.x")
+        .expect("Failed to read ARM linker script memory-arm.x");
+        
     File::create(out.join("memory.x"))
         .unwrap()
-        .write_all(include_bytes!("memory.x"))
+        .write_all(&arm_linker_script)
         .unwrap();
     
-    println!("cargo:rerun-if-changed=memory.x");
+    println!("cargo:rerun-if-changed=memory-arm.x");
 }

@@ -1,0 +1,28 @@
+[build]
+target = "thumbv7m-none-eabi"
+target-dir = "target/arm"
+
+[cargo]
+features = ["arm"]
+
+[board]
+name = "LM3S6965EVB"
+
+[architecture] 
+name = "ARM Cortex-M3"
+target = "thumbv7m-none-eabi"
+
+[memory]
+flash_start = "0x00000000"
+flash_size = "256K"
+ram_start = "0x20000000"
+ram_size = "64K"
+
+[test]
+runner = "qemu-system-arm"
+runner_args = [
+    "-machine", "lm3s6965evb",
+    "-nographic", 
+    "-semihosting-config", "enable=on,target=native",
+    "-kernel"
+]
