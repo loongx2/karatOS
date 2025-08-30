@@ -62,7 +62,8 @@ pub fn arch_shutdown() -> ! {
     }
 }
 
-/// Panic handler (architecture-agnostic)
+/// Panic handler for RISC-V only (ARM uses panic-halt)
+#[cfg(target_arch = "riscv32")]
 #[panic_handler]
 fn panic_handler(info: &core::panic::PanicInfo) -> ! {
     // Try to print panic info

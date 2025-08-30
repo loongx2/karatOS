@@ -4,6 +4,16 @@
 #![no_std]
 #![no_main]
 
+// ARM-specific imports and panic handler
+#[cfg(target_arch = "arm")]
+use panic_halt as _;
+
+#[cfg(target_arch = "arm")]
+use cortex_m_rt::entry;
+
+#[cfg(target_arch = "arm")]
+use cortex_m_semihosting::{debug, hprintln};
+
 // Include modules directly since this is the main binary
 mod arch;
 mod config;
@@ -13,24 +23,14 @@ mod memory;
 #[cfg(target_arch = "riscv32")]
 mod riscv_rt_config;
 
-// External crates - conditionally imported based on target architecture
-#[cfg(target_arch = "arm")]
-extern crate cortex_m_semihosting;
-
 /// ARM-specific entry point
 #[cfg(target_arch = "arm")]
-#[cortex_m_rt::entry]
+#[entry]
 fn main() -> ! {
-    // Test semihosting to confirm execution
-    use cortex_m_semihosting::hprintln;
-    let _ = hprintln!("ARM main function reached!");
+    // Test basic semihosting
+    hprintln!("Hello from ARM Cortex-M3!");
     
-    // Direct UART test - bypass all complex initialization
-    test_uart_direct();
-    let _ = hprintln!("UART test completed!");
-    
-    // Exit cleanly using semihosting to test if semihosting works
-    use cortex_m_semihosting::debug;
+    // Exit cleanly using semihosting
     debug::exit(debug::EXIT_SUCCESS);
     
     loop {
