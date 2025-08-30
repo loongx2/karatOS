@@ -58,13 +58,25 @@ impl MemoryLayout for RiscvMemoryLayout {
 
 /// Early debug output for RISC-V
 pub fn early_println(msg: &str) {
-    // Use simple UART output for RISC-V
-    let uart_base = 0x10000000; // QEMU virt machine UART
+    // QEMU virt provides NS16550A UART at 0x1000_0000
+    const UART_BASE: usize = 0x1000_0000;
+    const THR: usize = UART_BASE + 0; // Transmit holding register
+    const LSR: usize = UART_BASE + 5; // Line status register
+    const LSR_THRE: u8 = 0x20; // Transmit holding register empty bit
+    
     unsafe {
         for byte in msg.bytes() {
-            core::ptr::write_volatile(uart_base as *mut u8, byte);
+            // Wait for UART to be ready to transmit
+            while (core::ptr::read_volatile(LSR as *const u8) & LSR_THRE) == 0 {
+                // Busy wait - UART not ready
+            }
+            // Write byte to transmit holding register
+            core::ptr::write_volatile(THR as *mut u8, byte);
         }
         // Add newline
-        core::ptr::write_volatile(uart_base as *mut u8, b'\n');
+        while (core::ptr::read_volatile(LSR as *const u8) & LSR_THRE) == 0 {
+            // Busy wait - UART not ready
+        }
+        core::ptr::write_volatile(THR as *mut u8, b'\n');
     }
 }

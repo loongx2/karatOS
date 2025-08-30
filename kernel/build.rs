@@ -45,15 +45,15 @@ fn configure_riscv_build(out: &PathBuf) {
 fn configure_arm_build(out: &PathBuf) {
     // Set ARM specific configuration
     println!("cargo:rustc-cfg=arm_target");
-    
-    // Use ARM specific linker script
-    let arm_linker_script = std::fs::read("memory-arm.x")
-        .expect("Failed to read ARM linker script memory-arm.x");
-        
+
+    // Use LM3S6965EVB specific linker script
+    let arm_linker_script = std::fs::read("memory-lm3s6965evb.x")
+        .expect("Failed to read ARM linker script memory-lm3s6965evb.x");
+
     File::create(out.join("memory.x"))
         .unwrap()
         .write_all(&arm_linker_script)
         .unwrap();
-    
-    println!("cargo:rerun-if-changed=memory-arm.x");
+
+    println!("cargo:rerun-if-changed=memory-lm3s6965evb.x");
 }

@@ -2,6 +2,8 @@
 rustflags = [
   "-C", "linker=rust-lld", 
   "-C", "link-arg=-Tmemory.x",
+  "-C", "link-arg=-L",
+  "-C", "link-arg=%OUT_DIR%",
   "-C", "link-arg=--nmagic",
 ]
 
@@ -9,5 +11,7 @@ rustflags = [
 rustflags = [
   "-C", "linker=rust-lld",
   "-C", "link-arg=-Tmemory.x",
+  "-C", "link-arg=-L",
+  "-C", "link-arg=%OUT_DIR%",
   "-C", "link-arg=--nmagic",
 ]

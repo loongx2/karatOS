@@ -1,21 +1,19 @@
 MEMORY {
-    FLASH : ORIGIN = 0x00000000, LENGTH = 256K
-    RAM : ORIGIN = 0x20000000, LENGTH = 64K
+    FLASH : ORIGIN = 0x00000000, LENGTH = 128M
+    RAM : ORIGIN = 0x40000000, LENGTH = 128M
 }
 
 _stack_start = ORIGIN(RAM) + LENGTH(RAM);
-
-ENTRY(main)
 
 SECTIONS {
     .vector_table ORIGIN(FLASH) : {
         KEEP(*(.vector_table));
     } > FLASH
-    
+
     .text : {
         *(.text .text.*);
     } > FLASH
-    
+
     .rodata : {
         *(.rodata .rodata.*);
     } > FLASH
@@ -28,7 +26,7 @@ SECTIONS {
         *(.bss .bss.*);
         *(COMMON);
     } > RAM
-    
+
     /* Discard unwanted sections */
     /DISCARD/ : {
         *(.eh_frame);

@@ -7,7 +7,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KERNEL_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-KERNEL_PATH="$KERNEL_DIR/target/armv7a-none-eabi/debug/kernel"
+KERNEL_PATH="$(cd "$KERNEL_DIR/.." && pwd)/target/thumbv7m-none-eabi/debug/kernel"
 GDB_PORT="${GDB_PORT:-1234}"
 
 # Colors for output
@@ -32,7 +32,7 @@ log_warning() {
 if [ ! -f "$KERNEL_PATH" ]; then
     log_info "Kernel not found, building ARM target..."
     cd "$KERNEL_DIR"
-    cargo build --target armv7a-none-eabi --features arm
+    cargo build --target thumbv7m-none-eabi --features arm
     cd - > /dev/null
 fi
 
@@ -45,11 +45,9 @@ log_info "Then in GDB: target remote localhost:$GDB_PORT"
 
 # Run QEMU with GDB server
 qemu-system-arm \
-    -machine virt \
-    -cpu cortex-a15 \
-    -m 128M \
+    -machine lm3s6965evb \
+    -cpu cortex-m3 \
     -nographic \
-    -bios none \
     -semihosting-config enable=on,target=native \
     -gdb tcp::$GDB_PORT \
     -S \

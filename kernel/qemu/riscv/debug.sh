@@ -7,7 +7,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KERNEL_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-KERNEL_PATH="$KERNEL_DIR/target/riscv32imac-unknown-none-elf/debug/kernel"
+KERNEL_PATH="$(cd "$KERNEL_DIR/.." && pwd)/target/riscv32imac-unknown-none-elf/debug/kernel"
 GDB_PORT="${GDB_PORT:-1234}"
 
 # Colors for output
