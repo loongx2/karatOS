@@ -1,155 +1,286 @@
 #!/bin/bash
+# karatOS Modular Build System v2.0
+# Main entry point for the build system
 
-# Multi-Architecture Build Script for RTOS
-# Supports both ARM (Cortex-M) and RISC-V targets
-# Now with configuration-driven build support
+# Get the directory where this script is located
+BUILD_SYSTEM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-set -e
+# Load all modules
+# Source modular components
+source "build/modules/core.sh"
+source "build/modules/arch.sh"
+source "build/modules/qemu.sh"
+source "build/modules/config.sh"
 
-TARGET="${1:-all}"
-BUILD_TYPE="${2:-debug}"
-CONFIG_FILE="${3:-}"
+# Default values
+TARGET="${TARGET:-all}"
+BUILD_TYPE="${BUILD_TYPE:-debug}"
+BOARD="${BOARD:-}"
+TEST_MODE="${TEST_MODE:-false}"
+INTERACTIVE_MODE="${INTERACTIVE_MODE:-false}"
+CLEAN_MODE="${CLEAN_MODE:-false}"
+VERBOSE="${VERBOSE:-false}"
 
-echo "=== Multi-Architecture RTOS Build ==="
-echo "Target: $TARGET"
-echo "Build Type: $BUILD_TYPE"
-if [ -n "$CONFIG_FILE" ]; then
-    echo "Configuration: $CONFIG_FILE"
-fi
-echo ""
-
-# Configuration-based builds
-build_with_config() {
-    local config_name="$1"
-    echo "Building with configuration: $config_name"
-    
-    case "$config_name" in
-        "arm_lm3s6965")
-            echo "Configuration: ARM Cortex-M3 LM3S6965EVB"
-            cd kernel
-            if [ "$BUILD_TYPE" = "release" ]; then
-                cargo build --target thumbv7m-none-eabi --features arm --release
-            else
-                cargo build --target thumbv7m-none-eabi --features arm
-            fi
-            echo "ARM LM3S6965 build complete: target/thumbv7m-none-eabi/$BUILD_TYPE/kernel"
-            cd ..
-            ;;
-        "riscv_qemu")
-            echo "Configuration: RISC-V RV32IMAC QEMU virt"
-            cd kernel
-            if [ "$BUILD_TYPE" = "release" ]; then
-                cargo build --target riscv32imac-unknown-none-elf --features riscv --release
-            else
-                cargo build --target riscv32imac-unknown-none-elf --features riscv
-            fi
-            echo "RISC-V QEMU build complete: target/riscv32imac-unknown-none-elf/$BUILD_TYPE/kernel"
-            cd ..
-            ;;
-        *)
-            echo "Unknown configuration: $config_name"
-            echo "Available configurations:"
-            echo "  arm_lm3s6965  - ARM Cortex-M3 for LM3S6965EVB"
-            echo "  riscv_qemu    - RISC-V RV32IMAC for QEMU virt"
-            exit 1
-            ;;
-    esac
+# Parse command line arguments
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            arm|riscv|all)
+                TARGET="$1"
+                shift
+                ;;
+            debug|release)
+                BUILD_TYPE="$1"
+                shift
+                ;;
+            --board|-b)
+                BOARD="$2"
+                shift 2
+                ;;
+            --test|-t)
+                TEST_MODE=true
+                shift
+                ;;
+            --interactive|-i)
+                INTERACTIVE_MODE=true
+                shift
+                ;;
+            --clean|-c)
+                CLEAN_MODE=true
+                shift
+                ;;
+            --verbose|-v)
+                VERBOSE=true
+                LOG_LEVEL="debug"
+                shift
+                ;;
+            --timeout)
+                QEMU_TIMEOUT="$2"
+                shift 2
+                ;;
+            --interactive-timeout)
+                QEMU_INTERACTIVE_TIMEOUT="$2"
+                shift 2
+                ;;
+            --help|-h)
+                show_help
+                exit 0
+                ;;
+            --config)
+                # Future: load specific config file
+                shift 2
+                ;;
+            *)
+                error "Unknown option: $1"
+                show_help
+                exit 1
+                ;;
+        esac
+    done
 }
 
-# Build commands
-build_arm() {
-    echo "Building ARM (Cortex-M) target..."
-    cd kernel
-    if [ "$BUILD_TYPE" = "release" ]; then
-        cargo build --target thumbv7m-none-eabi --features arm --release
+# Show help information
+show_help() {
+    cat << EOF
+karatOS Modular Build System v2.0
+
+USAGE:
+    $0 [TARGET] [BUILD_TYPE] [OPTIONS]
+
+TARGETS:
+    arm         Build ARM Cortex-M target
+    riscv       Build RISC-V target
+    all         Build both targets
+
+BUILD_TYPES:
+    debug       Debug build (default)
+    release     Release build
+
+OPTIONS:
+    -b, --board BOARD        Specify board configuration
+    -t, --test               Run QEMU tests after build
+    -i, --interactive        Run QEMU in interactive mode
+    -c, --clean              Clean build artifacts first
+    --timeout SECONDS        Set QEMU test timeout (default: 30s)
+    --interactive-timeout SECONDS  Set QEMU interactive timeout (default: 300s)
+    -v, --verbose            Enable verbose output
+    -h, --help               Show this help
+
+EXAMPLES:
+    $0 arm                    # Build ARM debug
+    $0 riscv release         # Build RISC-V release
+    $0 all --test            # Build all and test
+    $0 arm --board lm3s6965  # Build ARM for specific board
+    $0 riscv --interactive   # Build and run RISC-V interactively
+    $0 --clean all           # Clean and build all
+    $0 all --test --timeout 60  # Build all with 60s test timeout
+    $0 riscv --interactive --interactive-timeout 600  # 10min interactive session
+
+CONFIGURATION:
+    Configuration files are located in build/configs/
+    - global.toml: Main configuration
+    - Memory templates in build/templates/
+
+EOF
+}
+
+# Main build function
+build_target() {
+    local target="$1"
+    local build_type="$2"
+    local board="$3"
+
+    log_info "Building $target target ($build_type)"
+
+    # Validate architecture
+    validate_architecture "$target"
+
+    # Load target configuration
+    load_target_config "$target"
+
+    # Load board configuration if specified
+    if [[ -n "$board" ]]; then
+        load_board_config "$target" "$board"
+    fi
+
+    # Setup build environment
+    setup_build_environment "$target" "$board"
+
+    # Generate memory layout
+    generate_memory_layout "$target" "$board"
+
+    # Execute cargo build
+    execute_cargo_build "$target" "$build_type"
+
+    # Validate build output
+    validate_build_output "$target" "$build_type"
+
+    # Save build configuration
+    save_build_config "$target" "$build_type" "$board"
+
+    log_success "$target build completed successfully"
+}
+
+# Execute cargo build
+execute_cargo_build() {
+    local target="$1"
+    local build_type="$2"
+
+    cd "$KERNEL_DIR"
+
+    # Get cargo arguments
+    local cargo_args
+    cargo_args=$(get_cargo_args "$target" "$build_type")
+
+    log_info "Running: cargo build $cargo_args"
+
+    if cargo build $cargo_args; then
+        log_success "Cargo build completed"
     else
-        cargo build --target thumbv7m-none-eabi --features arm
+        error "Cargo build failed"
     fi
-    echo "ARM build complete: target/thumbv7m-none-eabi/$BUILD_TYPE/kernel"
-    cd ..
 }
 
-build_riscv() {
-    echo "Building RISC-V target..."
-    cd kernel
-    if [ "$BUILD_TYPE" = "release" ]; then
-        cargo build --target riscv32imac-unknown-none-elf --features riscv --release
-    else
-        cargo build --target riscv32imac-unknown-none-elf --features riscv
+# Main build orchestration
+execute_build() {
+    if [[ "$CLEAN_MODE" == true ]]; then
+        log_info "Cleaning build artifacts"
+        cd "$KERNEL_DIR"
+        cargo clean
+        log_success "Clean completed"
     fi
-    echo "RISC-V build complete: target/riscv32imac-unknown-none-elf/$BUILD_TYPE/kernel"
-    cd ..
-}
 
-# Check if targets are installed
-check_targets() {
-    echo "Checking Rust targets..."
-    
-    if ! rustup target list --installed | grep -q thumbv7m-none-eabi; then
-        echo "Installing ARM target..."
-        rustup target add thumbv7m-none-eabi
-    fi
-    
-    if ! rustup target list --installed | grep -q riscv32imac-unknown-none-elf; then
-        echo "Installing RISC-V target..."
-        rustup target add riscv32imac-unknown-none-elf
-    fi
-    
-    echo "Targets ready."
-    echo ""
-}
-
-# Main build logic
-if [ -n "$CONFIG_FILE" ]; then
-    # Configuration-driven build
-    check_targets
-    build_with_config "$CONFIG_FILE"
-else
-    # Traditional target-based build
     case "$TARGET" in
-        "arm")
-            check_targets
-            build_arm
+        arm|riscv)
+            build_target "$TARGET" "$BUILD_TYPE" "$BOARD"
+
+            if [[ "$TEST_MODE" == true || "$INTERACTIVE_MODE" == true ]]; then
+                if [[ "$INTERACTIVE_MODE" == true ]]; then
+                    run_qemu_interactive "$TARGET" "$BOARD" "$BUILD_TYPE"
+                else
+                    run_qemu_test "$TARGET" "$BOARD" "$BUILD_TYPE"
+                fi
+            fi
             ;;
-        "riscv")
-            check_targets
-            build_riscv
-            ;;
-        "all")
-            check_targets
-            build_arm
-            echo ""
-            build_riscv
+        all)
+            log_info "Building all targets"
+
+            # Build ARM
+            build_target "arm" "$BUILD_TYPE" "$BOARD"
+
+            # Build RISC-V
+            build_target "riscv" "$BUILD_TYPE" ""
+
+            if [[ "$TEST_MODE" == true || "$INTERACTIVE_MODE" == true ]]; then
+                if [[ "$INTERACTIVE_MODE" == true ]]; then
+                    echo "Interactive mode not supported for 'all' target"
+                    echo "Use specific target with --interactive"
+                else
+                    # Test both targets
+                    run_qemu_test "arm" "$BOARD" "$BUILD_TYPE"
+                    run_qemu_test "riscv" "" "$BUILD_TYPE"
+                fi
+            fi
             ;;
         *)
-            echo "Usage: $0 [arm|riscv|all] [debug|release] [config_name]"
-            echo ""
-            echo "Traditional builds:"
-            echo "  $0 arm debug      # Build ARM debug version"
-            echo "  $0 riscv release  # Build RISC-V release version"
-            echo "  $0 all debug      # Build both targets debug"
-            echo ""
-            echo "Configuration-driven builds:"
-            echo "  $0 config debug arm_lm3s6965   # Build ARM with LM3S6965 config"
-            echo "  $0 config release riscv_qemu   # Build RISC-V with QEMU config"
-            exit 1
+            error "Invalid target: $TARGET"
             ;;
     esac
-fi
+}
 
-echo ""
-echo "=== Build Summary ==="
-if [ "$TARGET" = "all" ] || [ "$TARGET" = "arm" ]; then
-    echo "ARM binary: target/thumbv7m-none-eabi/$BUILD_TYPE/kernel"
-    echo "  Run with: ./qemu-arm.sh"
-    echo "  Debug with: ./debug-interactive.sh"
-fi
+# Show build summary
+show_summary() {
+    echo ""
+    echo "=== Build Summary ==="
 
-if [ "$TARGET" = "all" ] || [ "$TARGET" = "riscv" ]; then
-    echo "RISC-V binary: target/riscv32imac-unknown-none-elf/$BUILD_TYPE/kernel"
-    echo "  Run with: ./qemu-riscv32.sh"
-    echo "  Debug with: ./debug-riscv.sh"
-fi
+    if [[ "$TARGET" == "all" || "$TARGET" == "arm" ]]; then
+        local arm_triple
+        arm_triple=$(get_target_triple "arm")
+        echo "ARM binary: target/$arm_triple/$BUILD_TYPE/kernel"
+        echo "  Run with: ./qemu-arm.sh"
+    fi
 
-echo ""
-echo "Build completed successfully!"
+    if [[ "$TARGET" == "all" || "$TARGET" == "riscv" ]]; then
+        local riscv_triple
+        riscv_triple=$(get_target_triple "riscv")
+        echo "RISC-V binary: target/$riscv_triple/$BUILD_TYPE/kernel"
+        echo "  Run with: ./qemu-riscv.sh"
+    fi
+
+    if [[ "$TEST_MODE" == true ]]; then
+        echo ""
+        echo "Tests completed successfully"
+    fi
+
+    echo ""
+    log_success "Build system execution completed"
+}
+
+# Main function
+main() {
+    # Initialize configuration
+    init_config
+
+    # Parse command line arguments
+    parse_arguments "$@"
+
+    # Validate configuration
+    validate_config "$TARGET" "$BUILD_TYPE" "$BOARD"
+
+    # Show configuration if verbose
+    if [[ "$VERBOSE" == true ]]; then
+        show_config
+    fi
+
+    log_info "Starting karatOS build system"
+    log_info "Target: $TARGET, Build Type: $BUILD_TYPE, Board: ${BOARD:-default}"
+
+    # Execute build
+    execute_build
+
+    # Show summary
+    show_summary
+}
+
+# Run main function with all arguments
+main "$@"

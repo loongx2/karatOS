@@ -38,12 +38,12 @@ impl Architecture {
 }
 
 /// Early debug output (available before full driver initialization)
-pub fn early_println(msg: &str) {
+pub fn early_println(_msg: &str) {
     #[cfg(target_arch = "arm")]
-    arm::early_println(msg);
+    arm::early_println(_msg);
     
     #[cfg(target_arch = "riscv32")]
-    riscv::early_println(msg);
+    riscv::early_println(_msg);
 }
 
 /// Architecture-specific yield/wait instruction

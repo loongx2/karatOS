@@ -18,4 +18,9 @@ Thumbs.db
 
 # QEMU runtime files
 *.log
+
+# Build system cache and generated files
+.build_cache
+build/build.log
+kernel/memory.x
 kernel/target/

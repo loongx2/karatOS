@@ -1,0 +1,40 @@
+# karatOS Build System Configuration
+
+[build]
+log_file = "build.log"
+parallel_jobs = 2
+verbose = false
+qemu_timeout = 30
+qemu_interactive_timeout = 300
+
+[targets.arm]
+triple = "thumbv7m-none-eabi"
+features = ["arm"]
+rustflags = ["-C", "linker=rust-lld", "-C", "link-arg=-Tmemory.x"]
+memory_template = "memory-arm.x"
+
+[targets.riscv]
+triple = "riscv32imac-unknown-none-elf"
+features = ["riscv"]
+rustflags = ["-C", "linker=rust-lld", "-C", "link-arg=-Tmemory.x"]
+memory_template = "memory-riscv.x"
+
+[boards.arm_lm3s6965]
+name = "LM3S6965EVB"
+arch = "arm"
+qemu_machine = "lm3s6965evb"
+memory = { flash_start = "0x00000000", flash_size = "0x00040000", ram_start = "0x20000000", ram_size = "0x00010000" }
+
+[boards.riscv_qemu]
+name = "QEMU virt"
+arch = "riscv"
+qemu_machine = "virt"
+memory = { ram_start = "0x80000000", ram_size = "0x08000000" }
+
+[qemu.arm_lm3s6965]
+command = "qemu-system-arm"
+args = ["-M", "lm3s6965evb", "-nographic", "-semihosting-config", "enable=on,target=native", "-serial", "mon:stdio"]
+
+[qemu.riscv_qemu]
+command = "qemu-system-riscv32"
+args = ["-machine", "virt", "-cpu", "rv32", "-smp", "1", "-m", "128M", "-nographic", "-bios", "none", "-serial", "mon:stdio"]

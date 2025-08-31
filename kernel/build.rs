@@ -29,26 +29,43 @@ fn main() {
 fn configure_riscv_build(out: &PathBuf) {
     // Set RISC-V specific configuration
     println!("cargo:rustc-cfg=riscv_target");
-    
-    // Use RISC-V specific linker script
-    let riscv_linker_script = std::fs::read("memory-riscv.x")
-        .expect("Failed to read RISC-V linker script memory-riscv.x");
-        
+
+    // Use RISC-V specific linker script from templates
+    let template_path = std::env::var("CARGO_MANIFEST_DIR")
+        .map(|dir| PathBuf::from(dir).join("../build/templates/memory-riscv.x"))
+        .unwrap_or_else(|_| PathBuf::from("../build/templates/memory-riscv.x"));
+
+    let riscv_linker_script = std::fs::read(&template_path)
+        .unwrap_or_else(|_| {
+            // Fallback to kernel directory if template not found
+            std::fs::read("memory-riscv.x")
+                .expect("Failed to read RISC-V linker script memory-riscv.x from kernel/ or ../build/templates/")
+        });
+
     File::create(out.join("memory.x"))
         .unwrap()
         .write_all(&riscv_linker_script)
         .unwrap();
-    
+
     println!("cargo:rerun-if-changed=memory-riscv.x");
+    println!("cargo:rerun-if-changed=../build/templates/memory-riscv.x");
 }
 
 fn configure_arm_build(out: &PathBuf) {
     // Set ARM specific configuration
     println!("cargo:rustc-cfg=arm_target");
 
-    // Use ARM specific linker script
-    let arm_linker_script = std::fs::read("memory-arm.x")
-        .expect("Failed to read ARM linker script memory-arm.x");
+    // Use ARM specific linker script from templates
+    let template_path = std::env::var("CARGO_MANIFEST_DIR")
+        .map(|dir| PathBuf::from(dir).join("../build/templates/memory-arm.x"))
+        .unwrap_or_else(|_| PathBuf::from("../build/templates/memory-arm.x"));
+
+    let arm_linker_script = std::fs::read(&template_path)
+        .unwrap_or_else(|_| {
+            // Fallback to kernel directory if template not found
+            std::fs::read("memory-arm.x")
+                .expect("Failed to read ARM linker script memory-arm.x from kernel/ or ../build/templates/")
+        });
 
     File::create(out.join("memory.x"))
         .unwrap()
@@ -56,4 +73,5 @@ fn configure_arm_build(out: &PathBuf) {
         .unwrap();
 
     println!("cargo:rerun-if-changed=memory-arm.x");
+    println!("cargo:rerun-if-changed=../build/templates/memory-arm.x");
 }

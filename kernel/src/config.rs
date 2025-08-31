@@ -30,6 +30,20 @@ pub const fn get_target_info() -> TargetInfo {
             env: "elf",
         }
     }
+
+    // Default fallback for host targets (testing, etc.)
+    #[cfg(not(any(
+        all(target_arch = "arm", target_vendor = "unknown", target_os = "none"),
+        all(target_arch = "riscv32", target_vendor = "unknown", target_os = "none")
+    )))]
+    {
+        TargetInfo {
+            arch: "unknown",
+            vendor: "unknown",
+            os: "unknown", 
+            env: "unknown",
+        }
+    }
 }
 
 /// Build-time feature configuration
