@@ -17,6 +17,14 @@ sudo apt install qemu-system-arm qemu-system-riscv32
 brew install qemu
 ```
 
+### Automated Installation (Recommended)
+For a complete setup on Linux systems, use the automated installation script:
+```bash
+./install-dependencies.sh
+```
+
+This script automatically detects your Linux distribution and installs all required dependencies including Rust, QEMU, and build tools.
+
 ### One-Command Test with Scheduling Demo
 ```bash
 # Test both platforms with real-time scheduling

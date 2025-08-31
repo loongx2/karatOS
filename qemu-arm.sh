@@ -1,12 +1,36 @@
 #!/bin/bash
-# Build and run ARM kernel on QEMU
+# Build and run ARM kernel on QEMU (Optimized)
 
-# Ensure ARM target is installed
-rustup target add thumbv7m-none-eabi
+set -e  # Exit on any error
 
-# Build the kernel with ARM features
-cd kernel
-cargo build --bin kernel --target thumbv7m-none-eabi --features arm
+echo "=== karatOS ARM QEMU Runner ==="
 
-# Run in QEMU with semihosting and UART enabled via monitor
-qemu-system-arm -M lm3s6965evb -nographic -semihosting-config enable=on,target=native -serial mon:stdio -kernel ../target/thumbv7m-none-eabi/debug/kernel
+# Check if binary exists and is up-to-date
+TARGET_DIR="target/thumbv7m-none-eabi/debug"
+KERNEL_BINARY="$TARGET_DIR/kernel"
+
+# Check if we need to rebuild
+if [ ! -f "$KERNEL_BINARY" ] || [ "kernel/src/main.rs" -nt "$KERNEL_BINARY" ]; then
+    echo "Building ARM kernel..."
+    ./build.sh arm
+else
+    echo "Using existing ARM kernel binary"
+fi
+
+# Verify binary exists
+if [ ! -f "$KERNEL_BINARY" ]; then
+    echo "Error: ARM kernel binary not found at $KERNEL_BINARY"
+    exit 1
+fi
+
+echo "Starting ARM QEMU with live task scheduling..."
+echo "Press Ctrl+C to stop"
+echo ""
+
+# Run in QEMU with semihosting and UART enabled
+qemu-system-arm \
+    -M lm3s6965evb \
+    -nographic \
+    -semihosting-config enable=on,target=native \
+    -serial mon:stdio \
+    -kernel "$KERNEL_BINARY"

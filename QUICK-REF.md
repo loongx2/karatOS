@@ -2,10 +2,17 @@
 
 ## One-Command Launch with Real-Time Scheduling
 
+### Automated Setup (Recommended)
 ```bash
-# Test everything with live task scheduling
-./test-platforms.sh
+# Install all dependencies automatically
+./install-dependencies.sh
 
+# Then test everything
+./test-platforms.sh
+```
+
+### Manual Setup
+```bash
 # ARM with round-robin task demo
 ./qemu-arm.sh
 
@@ -65,9 +72,28 @@ Task 4 (Event-Driven): Handling event 507400 [Task 4 completed]
 ```
 
 ## Prerequisites
+
+### Automated Installation (Recommended)
 ```bash
+./install-dependencies.sh
+```
+
+### Manual Installation
+```bash
+# Install Rust targets
 rustup target add riscv32imac-unknown-none-elf thumbv7m-none-eabi
+
+# Install QEMU (Ubuntu/Debian)
 sudo apt install qemu-system-arm qemu-system-riscv32
+
+# Install QEMU (Fedora/RHEL)
+sudo dnf install qemu-system-arm qemu-system-riscv32
+
+# Install QEMU (Arch Linux)
+sudo pacman -S qemu-system-arm qemu-system-riscv32
+
+# Install QEMU (macOS)
+brew install qemu
 ```
 
 ---

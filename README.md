@@ -1,4 +1,26 @@
-# karatOS - Multi-Architecture Rust RTOS
+# karatOS## 🚀 Quick Start
+
+### Automated Installation (Recommended)
+```bash
+# One-command setup for all dependencies
+./install-dependencies.sh
+
+# Then test both platforms
+./test-platforms.sh
+```
+
+### Manual Installation
+```bash
+# RISC-V with round-robin task scheduling
+./qemu-riscv.sh
+
+# ARM with round-robin task scheduling
+./qemu-arm.sh
+```
+
+> **🎯 NEW**: Both platforms now demonstrate **real-time task scheduling** with live UART output showing task execution and counter increments.
+
+**📖 Complete Guide**: See [`LAUNCH-GUIDE.md`](LAUNCH-GUIDE.md) for comprehensive build and run instructions.cture Rust RTOS
 
 Advanced multi-platform Rust RTOS with support for ARM Cortex-M and RISC-V architectures. Features modular architecture, event-driven configuration, and comprehensive QEMU emulation support with **real-time task scheduling demonstration**.
 
@@ -79,25 +101,111 @@ Task 4 (Event-Driven): Handling event 507500
 - **ARM (Cortex-M3)**: `thumbv7m-none-eabi`
 - **RISC-V (32-bit)**: `riscv32imac-unknown-none-elf`
 
-## Prerequisites
+## 📋 Prerequisites
 
-### 1. Rust Setup
+### 🚀 Automated Setup (Recommended)
 ```bash
-rustup target add thumbv7m-none-eabi riscv32imac-unknown-none-elf
+# One-command installation for all dependencies
+./install-dependencies.sh
 ```
 
-### 2. QEMU Emulation
+This script automatically detects your Linux distribution and installs:
+- ✅ Rust toolchain with ARM and RISC-V targets
+- ✅ QEMU for ARM and RISC-V emulation
+- ✅ Build tools and development packages
+- ✅ Optional debugging tools (GDB, OpenOCD)
+
+**Supported Linux Distributions:**
+- Ubuntu/Debian/Linux Mint/Pop!_OS
+- Fedora/RHEL/CentOS/Rocky Linux/AlmaLinux
+- Arch Linux/Manjaro/EndeavourOS
+- openSUSE/SLES
+- macOS (with Homebrew)
+
+### 📦 Manual Installation
+
+#### 1. Rust Setup
 ```bash
-sudo apt-get install qemu-system-arm qemu-system-misc
+# Install Rust (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+
+# Install target architectures
+rustup target add thumbv7m-none-eabi        # ARM Cortex-M
+rustup target add riscv32imac-unknown-none-elf  # RISC-V 32-bit
 ```
 
-### 3. Debugging Tools (Optional)
-```bash
-# ARM debugging
-sudo apt install openocd gdb-multiarch
+#### 2. QEMU Emulation
 
-# RISC-V debugging  
-sudo apt install gcc-riscv64-unknown-elf gdb-multiarch
+**Ubuntu/Debian/Linux Mint/Pop!_OS:**
+```bash
+sudo apt-get update
+sudo apt-get install qemu-system-arm qemu-system-riscv32 qemu-system-misc
+```
+
+**Fedora/RHEL/CentOS/Rocky Linux/AlmaLinux:**
+```bash
+sudo dnf install qemu-system-arm qemu-system-riscv32 qemu-system-misc
+```
+
+**Arch Linux/Manjaro/EndeavourOS:**
+```bash
+sudo pacman -S qemu-system-arm qemu-system-riscv32
+```
+
+**openSUSE/SLES:**
+```bash
+sudo zypper install qemu-arm qemu-riscv32
+```
+
+**macOS (with Homebrew):**
+```bash
+brew install qemu
+```
+
+#### 3. Build Tools
+```bash
+# Ubuntu/Debian
+sudo apt-get install build-essential git curl
+
+# Fedora/RHEL
+sudo dnf install gcc gcc-c++ make git curl
+
+# Arch Linux
+sudo pacman -S base-devel git curl
+
+# macOS
+brew install git curl
+```
+
+#### 4. Optional Debugging Tools
+```bash
+# Ubuntu/Debian
+sudo apt-get install gdb-multiarch openocd
+
+# Fedora/RHEL
+sudo dnf install gdb openocd
+
+# Arch Linux
+sudo pacman -S gdb openocd
+
+# macOS
+brew install gdb openocd
+```
+
+### 🔍 Verification
+After installation, verify everything is working:
+```bash
+# Check Rust installation
+rustc --version
+cargo --version
+
+# Check targets
+rustup target list | grep -E "(thumbv7m|riscv32imac)"
+
+# Check QEMU
+qemu-system-arm --version
+qemu-system-riscv32 --version
 ```
 
 ## 🚀 Quick Launch Commands
