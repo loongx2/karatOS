@@ -177,6 +177,19 @@ impl MemoryLayout for ArmMemoryLayout {
     }
 }
 
+/// Interrupt control functions for ARM Cortex-M
+pub fn disable_interrupts() {
+    unsafe {
+        core::arch::asm!("cpsid i", options(nomem, nostack));
+    }
+}
+
+pub fn enable_interrupts() {
+    unsafe {
+        core::arch::asm!("cpsie i", options(nomem, nostack));
+    }
+}
+
 /// Early debug output for ARM
 pub fn early_println(msg: &str) {
     // LM3S6965EVB UART0 at 0x4000C000

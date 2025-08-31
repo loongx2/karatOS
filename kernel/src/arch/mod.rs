@@ -55,6 +55,23 @@ pub fn arch_yield() {
     unsafe { core::arch::asm!("wfi") };
 }
 
+/// Interrupt control functions
+pub fn disable_interrupts() {
+    #[cfg(target_arch = "arm")]
+    arm::disable_interrupts();
+    
+    #[cfg(target_arch = "riscv32")]
+    riscv::disable_interrupts();
+}
+
+pub fn enable_interrupts() {
+    #[cfg(target_arch = "arm")]
+    arm::enable_interrupts();
+    
+    #[cfg(target_arch = "riscv32")]
+    riscv::enable_interrupts();
+}
+
 /// Architecture shutdown
 pub fn arch_shutdown() -> ! {
     loop {

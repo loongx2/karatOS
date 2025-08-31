@@ -56,6 +56,19 @@ impl MemoryLayout for RiscvMemoryLayout {
     }
 }
 
+/// Interrupt control functions for RISC-V
+pub fn disable_interrupts() {
+    unsafe {
+        riscv::register::mstatus::clear_mie();
+    }
+}
+
+pub fn enable_interrupts() {
+    unsafe {
+        riscv::register::mstatus::set_mie();
+    }
+}
+
 /// Early debug output for RISC-V
 pub fn early_println(msg: &str) {
     // QEMU virt provides NS16550A UART at 0x1000_0000

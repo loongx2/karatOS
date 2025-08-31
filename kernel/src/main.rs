@@ -12,7 +12,7 @@ use panic_halt as _;
 use cortex_m_rt::entry;
 
 #[cfg(target_arch = "arm")]
-use cortex_m_semihosting::{debug, hprintln};
+use cortex_m_semihosting::hprintln;
 
 // Include modules directly since this is the main binary
 mod arch;
@@ -23,93 +23,219 @@ mod memory;
 #[cfg(target_arch = "riscv32")]
 mod riscv_rt_config;
 
+// Import scheduler for task management
+mod scheduler;
+use scheduler::{Task, EventPriority, post_event_with_priority, add_task};
+
+// -------- Scheduling Example Tasks --------
+
+// Simple integer to string conversion (no heap allocation)
+fn u32_to_str(mut num: u32) -> [u8; 10] {
+    let mut buffer = [b'0'; 10];
+    let mut i = 0;
+
+    if num == 0 {
+        return buffer;
+    }
+
+    while num > 0 && i < 10 {
+        buffer[9 - i] = b'0' + (num % 10) as u8;
+        num /= 10;
+        i += 1;
+    }
+
+    // Shift to start of buffer
+    let start = 10 - i;
+    for j in 0..i {
+        buffer[j] = buffer[start + j];
+        buffer[start + j] = b' ';
+    }
+
+    buffer
+}
+
+// -------- Scheduling Example Tasks --------
+
+// Task 1: High priority periodic task
+fn task_high_priority() {
+    static mut COUNTER: u32 = 0;
+    unsafe {
+        COUNTER += 1;
+        let counter_bytes = u32_to_str(COUNTER);
+        let counter_str = core::str::from_utf8(&counter_bytes).unwrap_or("0");
+        let msg = "Task 1 (High Priority): Counter = ";
+        arch::early_println(msg);
+        arch::early_println(counter_str);
+    }
+}
+
+// Task 2: Normal priority background task
+fn task_normal_priority() {
+    static mut COUNTER: u32 = 0;
+    unsafe {
+        COUNTER += 1;
+        let counter_bytes = u32_to_str(COUNTER);
+        let counter_str = core::str::from_utf8(&counter_bytes).unwrap_or("0");
+        let msg = "Task 2 (Normal Priority): Processing data #";
+        arch::early_println(msg);
+        arch::early_println(counter_str);
+    }
+}
+
+// Task 3: Low priority maintenance task
+fn task_low_priority() {
+    static mut COUNTER: u32 = 0;
+    unsafe {
+        COUNTER += 1;
+        let counter_bytes = u32_to_str(COUNTER);
+        let counter_str = core::str::from_utf8(&counter_bytes).unwrap_or("0");
+        let msg = "Task 3 (Low Priority): Maintenance cycle ";
+        arch::early_println(msg);
+        arch::early_println(counter_str);
+    }
+}
+
+// Task 4: Event-driven task that waits for events
+fn task_event_driven() {
+    static mut COUNTER: u32 = 0;
+    unsafe {
+        COUNTER += 1;
+        let counter_bytes = u32_to_str(COUNTER);
+        let counter_str = core::str::from_utf8(&counter_bytes).unwrap_or("0");
+        let msg = "Task 4 (Event-Driven): Handling event ";
+        arch::early_println(msg);
+        arch::early_println(counter_str);
+    }
+}
+
+// -------- Main Scheduling Loop --------
+fn run_scheduler_example() -> ! {
+    arch::early_println("=== karatOS Scheduler Example Starting ===");
+
+    // Create and spawn tasks
+    let task1 = Task::new(1);
+    let task2 = Task::new(2);
+    let task3 = Task::new(3);
+    let task4 = Task::new(4);
+
+    // Spawn tasks with different priorities
+    if let Ok(id1) = add_task(task1) {
+        let id_bytes = u32_to_str(id1 as u32);
+        let id_str = core::str::from_utf8(&id_bytes).unwrap_or("0");
+        arch::early_println("Spawned Task 1 (High Priority) with ID: ");
+        arch::early_println(id_str);
+    }
+
+    if let Ok(id2) = add_task(task2) {
+        let id_bytes = u32_to_str(id2 as u32);
+        let id_str = core::str::from_utf8(&id_bytes).unwrap_or("0");
+        arch::early_println("Spawned Task 2 (Normal Priority) with ID: ");
+        arch::early_println(id_str);
+    }
+
+    if let Ok(id3) = add_task(task3) {
+        let id_bytes = u32_to_str(id3 as u32);
+        let id_str = core::str::from_utf8(&id_bytes).unwrap_or("0");
+        arch::early_println("Spawned Task 3 (Low Priority) with ID: ");
+        arch::early_println(id_str);
+    }
+
+    if let Ok(id4) = add_task(task4) {
+        let id_bytes = u32_to_str(id4 as u32);
+        let id_str = core::str::from_utf8(&id_bytes).unwrap_or("0");
+        arch::early_println("Spawned Task 4 (Event-Driven) with ID: ");
+        arch::early_println(id_str);
+    }
+
+    arch::early_println("=== All Tasks Spawned, Starting Round-Robin Scheduler ===");
+
+    let mut cycle_counter = 0u32;
+    let mut current_task_id = 0u32;
+
+    loop {
+        cycle_counter += 1;
+        current_task_id = (current_task_id % 4) + 1; // Cycle through tasks 1-4
+
+        // Execute the current task
+        match current_task_id {
+            1 => {
+                task_high_priority();
+                arch::early_println(" [Task 1 completed]");
+            },
+            2 => {
+                task_normal_priority();
+                arch::early_println(" [Task 2 completed]");
+            },
+            3 => {
+                task_low_priority();
+                arch::early_println(" [Task 3 completed]");
+            },
+            4 => {
+                task_event_driven();
+                arch::early_println(" [Task 4 completed]");
+            },
+            _ => arch::early_println("Unknown task ID"),
+        }
+
+        // Every 10 cycles, post an event to demonstrate event handling
+        if cycle_counter % 10 == 0 {
+            let posted = post_event_with_priority(100, EventPriority::High);
+            if posted {
+                arch::early_println("=== Posted high-priority event ===");
+            }
+        }
+
+        // Every 25 cycles, post a normal event
+        if cycle_counter % 25 == 0 {
+            let posted = post_event_with_priority(200, EventPriority::Normal);
+            if posted {
+                arch::early_println("=== Posted normal-priority event ===");
+            }
+        }
+
+        // Print scheduler status every 50 cycles
+        if cycle_counter % 50 == 0 {
+            let cycle_bytes = u32_to_str(cycle_counter);
+            let cycle_str = core::str::from_utf8(&cycle_bytes).unwrap_or("0");
+            arch::early_println("=== Scheduler cycle: ");
+            arch::early_println(cycle_str);
+            arch::early_println(" ===");
+        }
+
+        // Small delay between task switches
+        for _ in 0..5000 {
+            unsafe { core::arch::asm!("nop"); }
+        }
+    }
+}
+
 /// ARM-specific entry point
 #[cfg(target_arch = "arm")]
 #[entry]
 fn main() -> ! {
     // Test basic semihosting
     hprintln!("Hello from ARM Cortex-M3!");
-    
-    // Exit cleanly using semihosting
-    debug::exit(debug::EXIT_SUCCESS);
-    
-    loop {
-        cortex_m::asm::wfi();
-    }
+    arch::early_println("ARM UART initialized");
+
+    // Run the scheduler example instead of exiting
+    run_scheduler_example()
 }
 
 /// Main entry point for the kernel
 /// This function is called by the architecture-specific boot code
 #[no_mangle]
 pub fn kernel_main() -> ! {
-    // Initialize and run the kernel
+    // Initialize and run the kernel with scheduler example
     kernel::init();
-    kernel::run()
+    run_scheduler_example()
 }
 
 // Architecture-specific entry points
 
-/// ARM-specific entry point
-/// Direct UART test for LM3S6965EVB
-#[cfg(target_arch = "arm")]
-fn test_uart_direct() {
-    // LM3S6965EVB UART0 at 0x4000C000
-    const UART0_BASE: usize = 0x4000C000;
-    const UARTDR: usize = UART0_BASE + 0x000; // Data register
-    const UARTFR: usize = UART0_BASE + 0x018; // Flag register
-    const UARTIBRD: usize = UART0_BASE + 0x024; // Integer baud rate divisor
-    const UARTFBRD: usize = UART0_BASE + 0x028; // Fractional baud rate divisor
-    const UARTLCRH: usize = UART0_BASE + 0x02C; // Line control register
-    const UARTCTL: usize = UART0_BASE + 0x030; // Control register
-    
-    // Enable UART0 clock via RCGC1
-    const RCGC1: usize = 0x400FE104;
-    unsafe {
-        let rcgc1 = core::ptr::read_volatile(RCGC1 as *const u32);
-        core::ptr::write_volatile(RCGC1 as *mut u32, rcgc1 | (1 << 0));
-        
-        // Small delay for clock to stabilize
-        for _ in 0..10000 {
-            cortex_m::asm::nop();
-        }
-        
-        // Configure UART for 115200 baud rate
-        core::ptr::write_volatile(UARTIBRD as *mut u32, 8);
-        core::ptr::write_volatile(UARTFBRD as *mut u32, 44);
-        
-        // Configure line control: 8 bits, no parity, 1 stop bit, enable FIFOs
-        core::ptr::write_volatile(UARTLCRH as *mut u32, 0x70);
-        
-        // Enable UART, TX, RX
-        core::ptr::write_volatile(UARTCTL as *mut u32, 0x301);
-        
-        // Small delay
-        for _ in 0..10000 {
-            cortex_m::asm::nop();
-        }
-        
-        // Send test message multiple times to make it visible
-        let message = b"UART TEST: Hello from ARM on LM3S6965EVB!\n";
-        for _ in 0..3 {
-            for &byte in message {
-                // Wait for TX FIFO to have space
-                while core::ptr::read_volatile(UARTFR as *const u32) & (1 << 5) != 0 {
-                    cortex_m::asm::nop();
-                }
-                core::ptr::write_volatile(UARTDR as *mut u32, byte as u32);
-            }
-            // Extra delay between messages
-            for _ in 0..100000 {
-                cortex_m::asm::nop();
-            }
-        }
-    }
-}
-
-/// RISC-V specific entry point  
+/// RISC-V specific entry point
 #[cfg(target_arch = "riscv32")]
 #[riscv_rt::entry]
 fn main() -> ! {
     arch::early_println("RISC-V entry point reached");
-    kernel_main()
+    run_scheduler_example()
 }
