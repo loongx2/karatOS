@@ -13,6 +13,8 @@ cd kernel && ./kernel.sh test-riscv
 cd kernel && ./kernel.sh build-arm
 ```
 
+> **⚠️ RECOMMENDED**: Use the provided bash scripts (`qemu-arm.sh` or `qemu-riscv.sh`) for consistent and reliable execution instead of manual QEMU commands.
+
 ## Manual Commands
 
 ### RISC-V Platform ✅
@@ -25,6 +27,19 @@ qemu-system-riscv32 -machine virt -cpu rv32 -m 128M -nographic -bios none -kerne
 
 # Expected: "RISC-V kernel started!"
 ```
+
+---
+
+## ⚠️ QEMU Usage Warning
+
+**Important:** Avoid using manual QEMU commands directly. Instead, use the provided bash scripts for consistent configuration and timeout handling:
+
+- For ARM: `./qemu-arm.sh`
+- For RISC-V: `./qemu-riscv.sh`
+
+These scripts include proper timeout settings, memory configuration, and error handling that manual commands may lack.
+
+---
 
 ### ARM Platform ⚠️ 
 ```bash

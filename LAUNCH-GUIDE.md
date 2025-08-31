@@ -38,6 +38,8 @@ cargo build --target riscv32imac-unknown-none-elf --bin kernel-riscv-simple
 qemu-system-riscv32 -machine virt -cpu rv32 -m 128M -nographic -bios none -kernel target/riscv32imac-unknown-none-elf/debug/kernel-riscv-simple
 ```
 
+> **⚠️ IMPORTANT**: For consistent and reliable execution, always use the provided bash scripts (`qemu-arm.sh` or `qemu-riscv.sh`) instead of manual QEMU commands. The scripts automatically handle the build process and ensure correct QEMU configuration.
+
 **Expected Output:**
 ```
 RISC-V kernel started!
@@ -64,6 +66,8 @@ cd kernel
 cargo build --target thumbv7m-none-eabi --bin kernel --features arm
 qemu-system-arm -M lm3s6965evb -nographic -semihosting-config enable=on,target=native -serial mon:stdio -kernel target/thumbv7m-none-eabi/debug/kernel
 ```
+
+> **⚠️ IMPORTANT**: For consistent and reliable execution, always use the provided bash scripts (`qemu-arm.sh` or `qemu-riscv.sh`) instead of manual QEMU commands. The scripts automatically handle the build process and ensure correct QEMU configuration.
 
 #### Quick Scripts
 ```bash

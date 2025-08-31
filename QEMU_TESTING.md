@@ -54,6 +54,21 @@ qemu-system-riscv32 -machine virt -cpu rv32 -smp 1 -m 128M -nographic \
     -bios none -kernel kernel/target/riscv32imac-unknown-none-elf/debug/kernel-riscv-simple
 ```
 
+> **⚠️ RECOMMENDED**: Use the provided bash scripts (`qemu-arm.sh` or `qemu-riscv.sh`) instead of manual QEMU commands. The scripts ensure:
+> - Automatic kernel building with correct features
+> - Proper QEMU arguments and machine configuration
+> - Consistent testing environment
+> - Latest kernel binary is always used
+
+### Direct Script Usage
+```bash
+# ARM kernel
+./qemu-arm.sh
+
+# RISC-V kernel  
+./qemu-riscv.sh
+```
+
 ## Technical Details
 
 ### ARM Architecture

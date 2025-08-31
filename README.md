@@ -36,6 +36,8 @@ cargo build --target thumbv7m-none-eabi --bin kernel-arm-working
 qemu-system-arm -M lm3s6965evb -kernel target/thumbv7m-none-eabi/debug/kernel-arm-working -nographic
 ```
 
+> **⚠️ IMPORTANT**: Always use the provided bash scripts (`qemu-arm.sh` or `qemu-riscv.sh`) instead of running QEMU commands directly. The scripts automatically handle building the kernel with the correct features and QEMU arguments.
+
 **📖 Complete Guide**: See [`LAUNCH-GUIDE.md`](LAUNCH-GUIDE.md) for comprehensive build and run instructions.
 
 ## ✨ Features
