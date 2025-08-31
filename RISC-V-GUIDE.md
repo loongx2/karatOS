@@ -4,12 +4,26 @@ This document describes how to build, run, and debug the RISC-V version of the a
 
 ## Prerequisites
 
-### 1. Rust RISC-V Target
+### 🚀 Automated Installation (Recommended)
+```bash
+# One-command setup for all dependencies
+./install-dependencies.sh
+```
+
+This script automatically installs:
+- ✅ Rust toolchain with RISC-V targets
+- ✅ QEMU with RISC-V support
+- ✅ Build tools and development packages
+- ✅ Optional debugging tools
+
+### 📦 Manual Installation
+
+#### 1. Rust RISC-V Target
 ```bash
 rustup target add riscv32imac-unknown-none-elf
 ```
 
-### 2. QEMU RISC-V Support
+#### 2. QEMU RISC-V Support
 ```bash
 # Ubuntu/Debian
 sudo apt install qemu-system-misc
@@ -18,7 +32,7 @@ sudo apt install qemu-system-misc
 # Verify with: qemu-system-riscv32 -machine help
 ```
 
-### 3. RISC-V Toolchain (for debugging)
+#### 3. RISC-V Toolchain (for debugging)
 ```bash
 # Option 1: Distribution packages
 sudo apt install gcc-riscv64-unknown-elf gdb-multiarch
