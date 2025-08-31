@@ -1,6 +1,6 @@
 # 🚀 Multi-Platform Rust RTOS - Launch Guide
 
-This guide provides comprehensive instructions for building and running the multi-platform Rust RTOS on both ARM and RISC-V architectures using QEMU emulation.
+This guide provides comprehensive instructions for building and running the multi-platform Rust RTOS on both ARM and RISC-V architectures using QEMU emulation with **real-time task scheduling demonstrations**.
 
 ## 📋 Quick Start
 
@@ -17,14 +17,16 @@ sudo apt install qemu-system-arm qemu-system-riscv32
 brew install qemu
 ```
 
-### One-Command Test
+### One-Command Test with Scheduling Demo
 ```bash
-# Test both platforms
+# Test both platforms with real-time scheduling
 ./test-platforms.sh
 
-# Expected output:
-# ✅ RISC-V Platform: WORKING
-# ✅ ARM Platform: BUILD SUCCESSFUL
+# Expected output shows live task execution:
+# Task 1 (High Priority): Counter = 507400 [Task 1 completed]
+# Task 2 (Normal Priority): Processing data #507400 [Task 2 completed]
+# Task 3 (Low Priority): Maintenance cycle 507400 [Task 3 completed]
+# Task 4 (Event-Driven): Handling event 507400 [Task 4 completed]
 ```
 
 ## 🎯 Platform-Specific Commands

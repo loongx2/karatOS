@@ -1,18 +1,6 @@
 # karatOS - Multi-Architecture Rust RTOS
 
-Advanced multi-platform Rust RTOS with support for ARM Cortex-M and RISC-V architectures. Features modular architecture, d### Architecture Details
-
-### ARM Implementation
-- **Target**: LM3S6965EVB (QEMU)
-- **UART**: 0x4000C000 (115200 baud)
-- **Features**: Proper ARM Cortex-M vector table, direct hardware access
-- **Memory**: 256KB Flash, 64KB RAM
-- **Vector Table**: Located at 0x00000000 with proper Thumb mode handlers
-- **Status**: ✅ Fully functional with UART output
-
-### RISC-V Implementation  
-- **Target**: QEMU virt machine
-- **UART**: 0x10000000 (16550 compatible)driven configuration, and comprehensive QEMU emulation support.
+Advanced multi-platform Rust RTOS with support for ARM Cortex-M and RISC-V architectures. Features modular architecture, event-driven configuration, and comprehensive QEMU emulation support with **real-time task scheduling demonstration**.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
@@ -22,28 +10,27 @@ Advanced multi-platform Rust RTOS with support for ARM Cortex-M and RISC-V archi
 ## 🚀 Quick Start
 
 ```bash
-# Test both platforms
+# Test both platforms with real-time scheduling
 ./test-platforms.sh
 
-# RISC-V (Fully Functional)
-cd kernel
-cargo build --target riscv32imac-unknown-none-elf --bin kernel-riscv-simple
-qemu-system-riscv32 -machine virt -nographic -bios none -kernel target/riscv32imac-unknown-none-elf/debug/kernel-riscv-simple
+# ARM with round-robin task scheduling
+./qemu-arm.sh
 
-# ARM (Fully Functional)  
-cd kernel
-cargo build --target thumbv7m-none-eabi --bin kernel-arm-working
-qemu-system-arm -M lm3s6965evb -kernel target/thumbv7m-none-eabi/debug/kernel-arm-working -nographic
+# RISC-V with round-robin task scheduling
+./qemu-riscv.sh
 ```
 
-> **⚠️ IMPORTANT**: Always use the provided bash scripts (`qemu-arm.sh` or `qemu-riscv.sh`) instead of running QEMU commands directly. The scripts automatically handle building the kernel with the correct features and QEMU arguments.
+> **🎯 NEW**: Both platforms now demonstrate **real-time task scheduling** with UART output showing live task execution, counter increments, and event handling.
 
 **📖 Complete Guide**: See [`LAUNCH-GUIDE.md`](LAUNCH-GUIDE.md) for comprehensive build and run instructions.
 
 ## ✨ Features
 
-- **✅ RISC-V Platform**: Fully functional with QEMU emulation
-- **✅ ARM Platform**: Fully functional with proper vector table implementation
+- **🎯 Real-Time Task Scheduling**: Round-robin scheduler with 4 priority levels (High/Normal/Low/Event-Driven)
+- **📊 Live UART Monitoring**: Real-time task execution output with counter increments
+- **🔄 Event-Driven Architecture**: Priority-based event posting and handling system
+- **✅ RISC-V Platform**: Fully functional with QEMU emulation and scheduling demo
+- **✅ ARM Platform**: Fully functional with proper vector table and scheduling demo
 - **🏗️ Modular Architecture**: Platform-agnostic kernel with device-specific drivers
 - **🔧 Device Tree Support**: Hardware abstraction with automatic driver initialization
 - **🚀 QEMU Integration**: Complete emulation environment for development
@@ -51,25 +38,40 @@ qemu-system-arm -M lm3s6965evb -kernel target/thumbv7m-none-eabi/debug/kernel-ar
 
 ## 🎯 Platform Status
 
-| Platform | Build | QEMU | Output | Status |
-|----------|-------|------|--------|---------|
-| **RISC-V 32-bit** | ✅ | ✅ | ✅ "RISC-V kernel started!" | **WORKING** |
-| **ARM Cortex-M** | ✅ | ✅ | ✅ "ARM kernel started!" + details | **WORKING** |
+| Platform | Build | QEMU | Scheduling | UART Output | Status |
+|----------|-------|------|------------|-------------|---------|
+| **RISC-V 32-bit** | ✅ | ✅ | ✅ Round-robin | ✅ Live task output | **WORKING** |
+| **ARM Cortex-M** | ✅ | ✅ | ✅ Round-robin | ✅ Live task output | **WORKING** |
 
-### Latest Test Results (August 22, 2025)
+### Latest Test Results (August 31, 2025)
 
-**RISC-V Output:**
+**Real-Time Scheduling Demo Output (Both Platforms):**
 ```
-RISC-V kernel started!
-```
+=== karatOS Scheduler Example Starting ===
+Spawned Task 1 (High Priority) with ID: 1
+Spawned Task 2 (Normal Priority) with ID: 2
+Spawned Task 3 (Low Priority) with ID: 3
+Spawned Task 4 (Event-Driven) with ID: 4
+=== All Tasks Spawned, Starting Round-Robin Scheduler ===
 
-**ARM Output:**
-```
-Timer with period zero, disabling
-ARM kernel started!
-Architecture: ARM Cortex-M3
-Board: LM3S6965EVB
-karatOS ARM platform working!
+Task 1 (High Priority): Counter = 507400
+ [Task 1 completed]
+Task 2 (Normal Priority): Processing data #507400
+ [Task 2 completed]
+Task 3 (Low Priority): Maintenance cycle 507400
+ [Task 3 completed]
+Task 4 (Event-Driven): Handling event 507400
+ [Task 4 completed]
+=== Scheduler cycle: 20400 ===
+
+Task 1 (High Priority): Counter = 507500
+ [Task 1 completed]
+Task 2 (Normal Priority): Processing data #507500
+ [Task 2 completed]
+Task 3 (Low Priority): Maintenance cycle 507500
+ [Task 3 completed]
+Task 4 (Event-Driven): Handling event 507500
+ [Task 4 completed]
 ```
 
 ## Build Targets
@@ -100,34 +102,24 @@ sudo apt install gcc-riscv64-unknown-elf gdb-multiarch
 
 ## 🚀 Quick Launch Commands
 
-### Automated Testing
+### Automated Testing with Scheduling Demo
 ```bash
-./test-platforms.sh      # Test both platforms
+./test-platforms.sh      # Test both platforms with scheduling
 ./test-all.sh           # Comprehensive test suite
 ```
 
-### Platform-Specific Commands
+### Platform-Specific Commands with Live Scheduling
 
-#### RISC-V (Recommended - Fully Working)
+#### ARM Cortex-M (Real-Time Scheduling Demo)
 ```bash
-cd kernel
-./kernel.sh test-riscv   # Build and run RISC-V
-./qemu/riscv/run.sh     # Alternative script
-
-# Manual command
-cargo build --target riscv32imac-unknown-none-elf --bin kernel-riscv-simple
-qemu-system-riscv32 -machine virt -cpu rv32 -m 128M -nographic -bios none -kernel target/riscv32imac-unknown-none-elf/debug/kernel-riscv-simple
+./qemu-arm.sh           # Run ARM with live task scheduling
+# Shows: Task 1/2/3/4 execution with counter increments
 ```
 
-#### ARM (Fully Working)
+#### RISC-V (Real-Time Scheduling Demo)
 ```bash
-cd kernel
-cargo build --target thumbv7m-none-eabi --bin kernel-arm-working
-qemu-system-arm -M lm3s6965evb -kernel target/thumbv7m-none-eabi/debug/kernel-arm-working -nographic
-
-# Alternative scripts
-./kernel.sh build-arm    # Build ARM kernel
-./qemu/arm/run.sh       # Run ARM kernel
+./qemu-riscv.sh         # Run RISC-V with live task scheduling
+# Shows: Task 1/2/3/4 execution with counter increments
 ```
 
 ### Build All Architectures
@@ -212,6 +204,12 @@ Both versions support interactive UART commands:
 5. **Deploy**: Flash to hardware (future)
 
 ## Advanced Features
+
+### 🎯 Real-Time Task Scheduling
+- **Round-Robin Execution**: 4 tasks cycling through High/Normal/Low/Event-Driven priorities
+- **Live Counter Monitoring**: Real-time incrementing counters showing task execution
+- **Event Posting System**: Priority-based event handling with automatic task triggering
+- **UART Output Streaming**: Continuous task execution status and counter values
 
 ### Event-Driven Scheduling
 - Priority-based event posting and handling

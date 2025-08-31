@@ -1,53 +1,67 @@
 # 🚀 Quick Reference Card
 
-## One-Command Launch
+## One-Command Launch with Real-Time Scheduling
 
 ```bash
-# Test everything
+# Test everything with live task scheduling
 ./test-platforms.sh
 
-# RISC-V (Working)
-cd kernel && ./kernel.sh test-riscv
+# ARM with round-robin task demo
+./qemu-arm.sh
 
-# ARM (Build only)  
-cd kernel && ./kernel.sh build-arm
+# RISC-V with round-robin task demo
+./qemu-riscv.sh
 ```
 
-> **⚠️ RECOMMENDED**: Use the provided bash scripts (`qemu-arm.sh` or `qemu-riscv.sh`) for consistent and reliable execution instead of manual QEMU commands.
+> **🎯 NEW**: Both platforms demonstrate **real-time task scheduling** with live UART output showing task execution and counter increments.
 
-## Manual Commands
+## Expected Live Output (Both Platforms)
 
-### RISC-V Platform ✅
-```bash
-# Build
-cargo build --target riscv32imac-unknown-none-elf --bin kernel-riscv-simple
+```
+=== karatOS Scheduler Example Starting ===
+Spawned Task 1 (High Priority) with ID: 1
+Spawned Task 2 (Normal Priority) with ID: 2
+Spawned Task 3 (Low Priority) with ID: 3
+Spawned Task 4 (Event-Driven) with ID: 4
+=== All Tasks Spawned, Starting Round-Robin Scheduler ===
 
-# Run
-qemu-system-riscv32 -machine virt -cpu rv32 -m 128M -nographic -bios none -kernel target/riscv32imac-unknown-none-elf/debug/kernel-riscv-simple
-
-# Expected: "RISC-V kernel started!"
+Task 1 (High Priority): Counter = 507400 [Task 1 completed]
+Task 2 (Normal Priority): Processing data #507400 [Task 2 completed]
+Task 3 (Low Priority): Maintenance cycle 507400 [Task 3 completed]
+Task 4 (Event-Driven): Handling event 507400 [Task 4 completed]
+=== Scheduler cycle: 20400 ===
 ```
 
----
+## Manual Commands (Advanced Users)
 
-## ⚠️ QEMU Usage Warning
-
-**Important:** Avoid using manual QEMU commands directly. Instead, use the provided bash scripts for consistent configuration and timeout handling:
-
-- For ARM: `./qemu-arm.sh`
-- For RISC-V: `./qemu-riscv.sh`
-
-These scripts include proper timeout settings, memory configuration, and error handling that manual commands may lack.
-
----
-
-### ARM Platform ⚠️ 
+### ARM Platform ✅ (Real-Time Scheduling Demo)
 ```bash
 # Build
-cargo build --target thumbv7m-none-eabi --bin kernel --features arm
+./build.sh arm
 
-# Run (has issues)
-qemu-system-arm -M lm3s6965evb -nographic -semihosting-config enable=on,target=native -serial mon:stdio -kernel target/thumbv7m-none-eabi/debug/kernel
+# Run with live task scheduling
+./qemu-arm.sh
+
+# Expected live output:
+# Task 1 (High Priority): Counter = 507400 [Task 1 completed]
+# Task 2 (Normal Priority): Processing data #507400 [Task 2 completed]
+# Task 3 (Low Priority): Maintenance cycle 507400 [Task 3 completed]
+# Task 4 (Event-Driven): Handling event 507400 [Task 4 completed]
+```
+
+### RISC-V Platform ✅ (Real-Time Scheduling Demo)
+```bash
+# Build
+./build.sh riscv
+
+# Run with live task scheduling
+./qemu-riscv.sh
+
+# Expected live output:
+# Task 1 (High Priority): Counter = 440700 [Task 1 completed]
+# Task 2 (Normal Priority): Processing data #440700 [Task 2 completed]
+# Task 3 (Low Priority): Maintenance cycle 440700 [Task 3 completed]
+# Task 4 (Event-Driven): Handling event 440700 [Task 4 completed]
 ```
 
 ## Prerequisites
