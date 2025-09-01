@@ -2,6 +2,7 @@
 //! Architecture-agnostic memory layout definitions
 
 /// Get memory regions for the current target
+#[allow(dead_code)]
 pub fn get_memory_regions() -> MemoryRegions {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {
@@ -38,6 +39,7 @@ pub fn get_memory_regions() -> MemoryRegions {
 }
 
 /// Common memory regions used by the kernel
+#[allow(dead_code)]
 pub struct MemoryRegions {
     pub ram_start: usize,
     pub ram_size: usize,
@@ -46,22 +48,27 @@ pub struct MemoryRegions {
 }
 
 impl MemoryRegions {
+    #[allow(dead_code)]
     pub fn ram_end(&self) -> usize {
         self.ram_start + self.ram_size
     }
     
+    #[allow(dead_code)]
     pub fn flash_end(&self) -> usize {
         self.flash_start + self.flash_size
     }
     
+    #[allow(dead_code)]
     pub fn stack_top(&self) -> usize {
         self.ram_start + self.ram_size
     }
     
+    #[allow(dead_code)]
     pub fn heap_start(&self) -> usize {
         self.ram_start + (self.ram_size / 2)
     }
     
+    #[allow(dead_code)]
     pub fn heap_size(&self) -> usize {
         self.ram_size / 4
     }

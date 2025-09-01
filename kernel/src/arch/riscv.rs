@@ -23,7 +23,8 @@ impl ArchInit for RiscvArch {
     }
 }
 
-/// RISC-V memory layout implementation
+/// RISC-V specific memory layout implementation
+#[allow(dead_code)]
 pub struct RiscvMemoryLayout;
 
 impl MemoryLayout for RiscvMemoryLayout {
@@ -91,5 +92,29 @@ pub fn early_println(msg: &str) {
             // Busy wait - UART not ready
         }
         core::ptr::write_volatile(THR as *mut u8, b'\n');
+    }
+}
+
+/// Yield CPU to other tasks (cooperative multitasking)
+#[allow(dead_code)]
+pub fn yield_cpu() {
+    unsafe {
+        // RISC-V wait for interrupt instruction
+        core::arch::asm!("wfi", options(nomem, nostack));
+    }
+}
+
+/// Shutdown system
+#[allow(dead_code)]
+pub fn shutdown() -> ! {
+    // Disable interrupts and halt
+    unsafe {
+        core::arch::asm!("csrci mstatus, 8", options(nomem, nostack));
+    }
+    
+    loop {
+        unsafe {
+            core::arch::asm!("wfi", options(nomem, nostack));
+        }
     }
 }

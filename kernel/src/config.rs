@@ -1,52 +1,66 @@
-//! Build configuration for multi-architecture kernel
-//! Provides build-time configuration for different targets
+//! Configuration management for the karatOS kernel
 
-/// Target architecture information
+/// Target platform information
+#[allow(dead_code)]
 pub struct TargetInfo {
     pub arch: &'static str,
-    pub vendor: &'static str,
-    pub os: &'static str,
-    pub env: &'static str,
+    pub platform: &'static str,
+    pub features: &'static [&'static str],
 }
 
-/// Get target information for the current build
+/// Get target platform information
+#[allow(dead_code)]
 pub const fn get_target_info() -> TargetInfo {
-    #[cfg(all(target_arch = "arm", target_vendor = "unknown", target_os = "none"))]
+    #[cfg(feature = "arm")]
     {
         TargetInfo {
-            arch: "arm",
-            vendor: "unknown",
-            os: "none",
-            env: "eabi",
+            arch: "ARM Cortex-M",
+            platform: "thumbv7m-none-eabi",
+            features: &["arm", "cortex-m"],
         }
     }
     
-    #[cfg(all(target_arch = "riscv32", target_vendor = "unknown", target_os = "none"))]
+    #[cfg(feature = "riscv")]
     {
         TargetInfo {
-            arch: "riscv32",
-            vendor: "unknown", 
-            os: "none",
-            env: "elf",
+            arch: "RISC-V",
+            platform: "riscv32imac-unknown-none-elf",
+            features: &["riscv", "riscv32"],
         }
     }
-
-    // Default fallback for host targets (testing, etc.)
-    #[cfg(not(any(
-        all(target_arch = "arm", target_vendor = "unknown", target_os = "none"),
-        all(target_arch = "riscv32", target_vendor = "unknown", target_os = "none")
-    )))]
+    
+    #[cfg(not(any(feature = "arm", feature = "riscv")))]
     {
         TargetInfo {
-            arch: "unknown",
-            vendor: "unknown",
-            os: "unknown", 
-            env: "unknown",
+            arch: "Host",
+            platform: "host",
+            features: &["std"],
         }
     }
 }
 
-/// Build-time feature configuration
+/// Runtime configuration for debugging and monitoring
+#[allow(dead_code)]
+pub struct RuntimeConfig {
+    pub enable_scheduler_stats: bool,
+    pub enable_debug_output: bool,
+    pub max_tasks: usize,
+    pub timer_frequency: u32,
+}
+
+/// Get runtime configuration
+#[allow(dead_code)]
+pub const fn get_runtime_config() -> RuntimeConfig {
+    RuntimeConfig {
+        enable_scheduler_stats: true,
+        enable_debug_output: true,
+        max_tasks: 8,
+        timer_frequency: 1000, // 1KHz
+    }
+}
+
+/// Build configuration options
+#[allow(dead_code)]
 pub struct BuildConfig {
     pub has_fpu: bool,
     pub has_mmu: bool,
@@ -55,18 +69,16 @@ pub struct BuildConfig {
 }
 
 /// Get build configuration for the current target
+#[allow(dead_code)]
 pub const fn get_build_config() -> BuildConfig {
     BuildConfig {
-        // Assume no FPU for embedded targets
-        has_fpu: false,
-        
-        // Embedded targets typically don't have MMU
-        has_mmu: false,
-        
+        has_fpu: false, // Embedded targets typically don't have FPU enabled
+        has_mmu: false, // Neither ARM Cortex-M nor our RISC-V target have MMU
         pointer_width: core::mem::size_of::<usize>() * 8,
         
         #[cfg(target_endian = "little")]
         endianness: "little",
+        
         #[cfg(target_endian = "big")]
         endianness: "big",
     }

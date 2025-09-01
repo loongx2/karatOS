@@ -1,13 +1,17 @@
 //! Kernel core module
 //! Architecture-agnostic kernel initialization and management
 
-use crate::arch::Architecture;
+use crate::arch::ArchInit;
 use crate::drivers;
 
 /// Initialize the kernel for the current architecture
 pub fn init() {
     // Initialize architecture-specific components
-    Architecture::init();
+    #[cfg(feature = "arm")]
+    crate::arch::arm::ArmArch::init();
+    
+    #[cfg(feature = "riscv")]
+    crate::arch::riscv::RiscvArch::init();
     
     // Initialize drivers
     drivers::uart::init();
@@ -17,6 +21,7 @@ pub fn init() {
 }
 
 /// Main kernel loop
+#[allow(dead_code)]
 pub fn run() -> ! {
     drivers::uart::print("Kernel running...\n");
     

@@ -1,104 +1,143 @@
-//! Architecture abstraction layer
-//! Provides common interface for ARM and RISC-V architectures
+//! Architecture abstraction layer for multi-platform support
+//! Provides unified interface for ARM and RISC-V architectures
 
-#[cfg(target_arch = "arm")]
+use core::sync::atomic::{AtomicBool, Ordering};
+
+// Interrupt state for critical sections
+static INTERRUPTS_ENABLED: AtomicBool = AtomicBool::new(true);
+
+// Import architecture-specific modules
+#[cfg(any(feature = "arm", target_arch = "arm"))]
 pub mod arm;
-#[cfg(target_arch = "riscv32")]
+
+#[cfg(any(feature = "riscv", target_arch = "riscv32"))]
 pub mod riscv;
 
-/// Common architecture initialization trait
-pub trait ArchInit {
-    fn init();
-    fn irq_init();
-    fn setup_memory_protection();
-}
-
-/// Memory layout trait for architecture-specific memory maps
+/// Memory layout trait for architecture-specific configurations
+#[allow(dead_code)]
 pub trait MemoryLayout {
     fn ram_start() -> usize;
     fn ram_size() -> usize;
-    fn flash_start() -> usize;  
+    fn flash_start() -> usize;
     fn flash_size() -> usize;
     fn stack_top() -> usize;
     fn heap_start() -> usize;
     fn heap_size() -> usize;
 }
 
-/// Architecture abstraction - unified interface
-pub struct Architecture;
+/// Architecture initialization trait
+#[allow(dead_code)]
+pub trait ArchInit {
+    fn init();
+    fn irq_init();
+    fn setup_memory_protection();
+}
 
-impl Architecture {
-    pub fn init() {
-        #[cfg(target_arch = "arm")]
-        arm::ArmArch::init();
-        
-        #[cfg(target_arch = "riscv32")]
-        riscv::RiscvArch::init();
+/// Architecture abstraction trait
+#[allow(dead_code)]
+pub trait Architecture {
+    type MemoryLayout: MemoryLayout;
+    type Init: ArchInit;
+}
+
+/// Early println for debugging (before full system init)
+#[allow(dead_code)]
+pub fn early_println(msg: &str) {
+    #[cfg(feature = "arm")]
+    arm::early_println(msg);
+    
+    #[cfg(feature = "riscv")]
+    riscv::early_println(msg);
+    
+    #[cfg(not(any(feature = "arm", feature = "riscv")))]
+    {
+        // Host platform - use standard output
+        println!("{}", msg);
     }
 }
 
-/// Early debug output (available before full driver initialization)
-pub fn early_println(_msg: &str) {
-    #[cfg(target_arch = "arm")]
-    arm::early_println(_msg);
-    
-    #[cfg(target_arch = "riscv32")]
-    riscv::early_println(_msg);
-}
-
-/// Architecture-specific yield/wait instruction
-pub fn arch_yield() {
-    #[cfg(target_arch = "arm")]
-    unsafe { core::arch::asm!("wfi") };
-    
-    #[cfg(target_arch = "riscv32")]
-    unsafe { core::arch::asm!("wfi") };
-}
-
-/// Architecture-specific wait for interrupt (power-saving)
-pub fn wait_for_interrupt() {
-    #[cfg(target_arch = "arm")]
-    unsafe { core::arch::asm!("wfe") }; // ARM uses WFE (Wait For Event)
-    
-    #[cfg(target_arch = "riscv32")]
-    unsafe { core::arch::asm!("wfi") }; // RISC-V uses WFI (Wait For Interrupt)
-}
-
-/// Interrupt control functions
+/// Disable interrupts for critical sections
+#[allow(dead_code)]
 pub fn disable_interrupts() {
-    #[cfg(target_arch = "arm")]
-    arm::disable_interrupts();
+    INTERRUPTS_ENABLED.store(false, Ordering::SeqCst);
     
-    #[cfg(target_arch = "riscv32")]
-    riscv::disable_interrupts();
+    #[cfg(feature = "arm")]
+    unsafe {
+        core::arch::asm!("cpsid i");
+    }
+    
+    #[cfg(feature = "riscv")]
+    unsafe {
+        core::arch::asm!("csrci mstatus, 8");
+    }
 }
 
+/// Enable interrupts after critical sections
+#[allow(dead_code)]
 pub fn enable_interrupts() {
-    #[cfg(target_arch = "arm")]
-    arm::enable_interrupts();
+    INTERRUPTS_ENABLED.store(true, Ordering::SeqCst);
     
-    #[cfg(target_arch = "riscv32")]
-    riscv::enable_interrupts();
+    #[cfg(feature = "arm")]
+    unsafe {
+        core::arch::asm!("cpsie i");
+    }
+    
+    #[cfg(feature = "riscv")]
+    unsafe {
+        core::arch::asm!("csrsi mstatus, 8");
+    }
 }
 
-/// Architecture shutdown
+/// Yield CPU to other tasks (cooperative multitasking)
+#[allow(dead_code)]
+pub fn arch_yield() {
+    #[cfg(feature = "arm")]
+    arm::yield_cpu();
+    
+    #[cfg(feature = "riscv")]
+    riscv::yield_cpu();
+}
+
+/// Architecture-agnostic wait for interrupt
+#[allow(dead_code)]
+pub fn wait_for_interrupt() {
+    #[cfg(feature = "arm")]
+    unsafe {
+        // ARM WFE (Wait For Event) - more efficient than WFI for our scheduler
+        core::arch::asm!("wfe");
+    }
+    
+    #[cfg(feature = "riscv")]
+    unsafe {
+        // RISC-V WFI (Wait For Interrupt)
+        core::arch::asm!("wfi");
+    }
+    
+    #[cfg(not(any(feature = "arm", feature = "riscv")))]
+    {
+        // Host platform - do nothing (for testing)
+    }
+}
+
+/// Get current interrupt state
+    #[allow(dead_code)]
+pub fn interrupts_enabled() -> bool {
+    INTERRUPTS_ENABLED.load(Ordering::SeqCst)
+}
+
+/// Architecture-specific shutdown
+#[allow(dead_code)]
 pub fn arch_shutdown() -> ! {
-    loop {
-        arch_yield();
-    }
-}
-
-/// Panic handler for RISC-V only (ARM uses panic-halt)
-#[cfg(target_arch = "riscv32")]
-#[panic_handler]
-fn panic_handler(info: &core::panic::PanicInfo) -> ! {
-    // Try to print panic info
-    if let Some(location) = info.location() {
-        early_println("PANIC at: ");
-        early_println(location.file());
-    } else {
-        early_println("PANIC occurred");
-    }
+    disable_interrupts();
     
-    arch_shutdown()
+    #[cfg(feature = "arm")]
+    arm::shutdown();
+    
+    #[cfg(feature = "riscv")]
+    riscv::shutdown();
+    
+    #[cfg(not(any(feature = "arm", feature = "riscv")))]
+    loop {
+        core::hint::spin_loop();
+    }
 }

@@ -14,6 +14,14 @@ use cortex_m_rt::entry;
 #[cfg(target_arch = "arm")]
 use cortex_m_semihosting::hprintln;
 
+// RISC-V specific imports and panic handler
+#[cfg(target_arch = "riscv32")]
+use panic_halt as _;
+
+#[cfg(target_arch = "riscv32")]
+#[allow(unused_imports)]
+use riscv_rt::entry;
+
 // Include modules directly since this is the main binary
 mod arch;
 mod config;

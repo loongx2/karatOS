@@ -11,6 +11,9 @@ repository = "https://github.com/loongx2/karatOS"
 
 [profile.dev]
 panic = "abort"
+lto = false
 
 [profile.release]
 panic = "abort"
+lto = true
+opt-level = "s"

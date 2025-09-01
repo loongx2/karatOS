@@ -1,8 +1,9 @@
-//! Async Event-Driven Scheduler with Cooperative Multitasking
+//! Enhanced async event scheduler with modern Rust patterns
+//! Optimized for embedded RTOS with priority-based preemption
 //! 
-//! Design Principles:
-//! 1. No deadlocks - Single-threaded execution with cooperative yielding
-//! 2. Mutually exclusive events - Atomic event processing via priority queues
+//! Key Features:
+//! 1. Lock-free ring buffers for maximum throughput - Use atomics for concurrent access
+//! 2. Priority-based task scheduling with yield points - Tasks can be interrupted by higher priority
 //! 3. Event-driven in single-threaded environment - Future-based tasks with Waker notifications
 //! 4. Multi-priority execution with preemption support
 //! 
@@ -52,8 +53,9 @@ impl Event {
     }
 }
 
-/// Async task state management with enhanced states
-#[derive(Clone, Debug, PartialEq)]
+/// Task state for scheduler management
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum TaskState {
     Ready,              // Ready to be polled
     Running,            // Currently executing
@@ -72,6 +74,7 @@ pub enum TaskPriority {
 }
 
 /// Enhanced task representation with Future integration
+#[allow(dead_code)]
 pub struct AsyncTask {
     pub id: usize,
     pub priority: TaskPriority,
@@ -81,6 +84,7 @@ pub struct AsyncTask {
 }
 
 impl AsyncTask {
+    #[allow(dead_code)]
     pub const fn new(id: usize, priority: TaskPriority) -> Self {
         Self {
             id,
@@ -91,10 +95,12 @@ impl AsyncTask {
         }
     }
     
+    #[allow(dead_code)]
     pub fn is_ready(&self) -> bool {
         matches!(self.state, TaskState::Ready)
     }
     
+    #[allow(dead_code)]
     pub fn wake(&self) {
         self.wake_count.fetch_add(1, Ordering::Relaxed);
     }
@@ -148,6 +154,7 @@ impl<const N: usize> LockFreeEventQueue<N> {
         Some(event)
     }
     
+    #[allow(dead_code)]
     fn is_empty(&self) -> bool {
         let head = self.head.load(Ordering::Relaxed);
         let tail = self.tail.load(Ordering::Acquire);
@@ -165,6 +172,7 @@ pub struct Task {
 }
 
 impl Task {
+    #[allow(dead_code)]
     pub const fn new(id: usize) -> Self {
         Self::with_priority(id, TaskPriority::Normal)
     }
@@ -413,6 +421,7 @@ impl AsyncScheduler {
     }
     
     /// Block current task on an event
+    #[allow(dead_code)]
     pub fn block_current_task(&mut self, event_id: u32) {
         if let Some(current_id) = self.current_task {
             if let Some(task) = &mut self.tasks[current_id] {
@@ -424,7 +433,8 @@ impl AsyncScheduler {
         }
     }
     
-    /// Sleep current task for specified time units
+    /// Put current task to sleep for duration
+    #[allow(dead_code)]
     pub fn sleep_current_task(&mut self, duration: u32) {
         if let Some(current_id) = self.current_task {
             if let Some(task) = &mut self.tasks[current_id] {
@@ -516,6 +526,7 @@ impl AsyncScheduler {
     }
     
     /// Get current running task
+    #[allow(dead_code)]
     pub fn current_task(&self) -> Option<&Task> {
         self.current_task.and_then(|id| self.tasks[id].as_ref())
     }
@@ -585,73 +596,88 @@ where
 // -------- Enhanced Public API --------
 
 /// Spawn a new task with default normal priority
+#[allow(dead_code)]
 pub fn add_task(task: Task) -> Result<usize, ()> {
     with_scheduler(|sched| sched.spawn_task(task))
 }
 
 /// Spawn a task with specific priority (uses multi-priority executor)
+#[allow(dead_code)]
 pub fn add_priority_task(task: Task) -> Result<usize, ()> {
     with_multi_scheduler(|sched| sched.spawn_task(task))
 }
 
 /// Post an event to wake waiting tasks
+#[allow(dead_code)]
 pub fn post_event_with_priority(id: u32, priority: EventPriority) -> bool {
     let event = Event::new(id, priority);
     with_scheduler(|sched| sched.post_event(event))
 }
 
 /// Post event to multi-priority scheduler (better for real-time systems)
+#[allow(dead_code)]
 pub fn post_priority_event(id: u32, priority: EventPriority) -> bool {
     let event = Event::new(id, priority);
     with_multi_scheduler(|sched| sched.post_event(event))
 }
 
 /// Post a normal priority event (compatibility)
+#[allow(dead_code)]
 pub fn post_event(event_id: u32) {
     let _ = post_event_with_priority(event_id, EventPriority::Normal);
 }
 
 /// Block current task until event arrives
+#[allow(dead_code)]
 pub fn block_current(event_id: u32) {
     with_scheduler(|sched| sched.block_current_task(event_id));
 }
 
 /// Sleep current task for specified duration
+#[allow(dead_code)]
 pub fn sleep_current(duration: u32) {
     with_scheduler(|sched| sched.sleep_current_task(duration));
 }
 
 /// Update global timer (call this periodically from timer interrupt)
+#[allow(dead_code)]
 pub fn update_global_timer(current_time: u32) {
     with_scheduler(|sched| sched.update_timer(current_time));
 }
 
 /// Run scheduler and return current task
+#[allow(dead_code)]
 pub fn schedule() -> Option<Task> {
     with_scheduler(|sched| sched.schedule().cloned())
 }
 
 /// Run multi-priority scheduler (recommended for real-time systems)
+#[allow(dead_code)]
+#[allow(dead_code)]
 pub fn schedule_with_priority() -> Option<Task> {
     with_multi_scheduler(|sched| sched.run_cycle())
 }
 
 /// Get current running task
+#[allow(dead_code)]
 pub fn current_task() -> Option<Task> {
     with_scheduler(|sched| sched.current_task().cloned())
 }
 
 /// Post critical priority event (for interrupt handlers, ISR-safe)
+#[allow(dead_code)]
 pub fn interrupt_event(event_id: u32) {
     let _ = post_event_with_priority(event_id, EventPriority::Critical);
 }
 
 /// Post interrupt event to multi-priority scheduler (ISR-safe)
+#[allow(dead_code)]
 pub fn interrupt_priority_event(event_id: u32) {
     let _ = post_priority_event(event_id, EventPriority::Critical);
 }
 
 /// Get scheduler statistics (active_tasks, total_events, timer)
+#[allow(dead_code)]
 pub fn scheduler_stats() -> (u32, u32, u32) {
     with_scheduler(|sched| sched.stats())
 }
@@ -679,6 +705,7 @@ pub fn yield_now() {
 
 /// Architecture-agnostic sleep/wait instruction
 #[inline(always)]
+#[allow(dead_code)]
 pub fn cpu_wait_for_interrupt() {
     // Architecture-specific implementations are handled in arch module
     crate::arch::wait_for_interrupt();

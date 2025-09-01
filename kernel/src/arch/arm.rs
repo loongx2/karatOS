@@ -144,7 +144,8 @@ impl ArmArch {
     }
 }
 
-/// ARM memory layout implementation
+/// ARM-specific memory layout implementation
+#[allow(dead_code)]
 pub struct ArmMemoryLayout;
 
 impl MemoryLayout for ArmMemoryLayout {
@@ -204,5 +205,29 @@ pub fn early_println(msg: &str) {
         }
         // Add newline
         core::ptr::write_volatile(UARTDR as *mut u32, b'\n' as u32);
+    }
+}
+
+/// Yield CPU to other tasks (cooperative multitasking)
+#[allow(dead_code)]
+pub fn yield_cpu() {
+    unsafe {
+        // ARM wait for interrupt instruction
+        core::arch::asm!("wfi", options(nomem, nostack));
+    }
+}
+
+/// Shutdown system
+#[allow(dead_code)]
+pub fn shutdown() -> ! {
+    // Disable interrupts and halt
+    unsafe {
+        core::arch::asm!("cpsid i", options(nomem, nostack));
+    }
+    
+    loop {
+        unsafe {
+            core::arch::asm!("wfi", options(nomem, nostack));
+        }
     }
 }
