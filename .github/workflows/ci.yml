@@ -158,55 +158,23 @@ jobs:
           path: |
             target/${{ matrix.target == 'arm' && 'thumbv7m-none-eabi' || 'riscv32imac-unknown-none-elf' }}/${{ matrix.build_type }}/kernel
           retention-days: 30
-
-  # Comprehensive testing with Python orchestrator
-  integration-test:
-    name: Integration Testing
-    runs-on: ubuntu-latest
-    needs: validate
-    if: needs.validate.outputs.should_run == 'true'
-    
-    container:
-      image: rust:1.75-slim
-      
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Install dependencies
+          
+      # Run Python orchestrator testing (only for debug builds to avoid redundancy)
+      - name: Run Python CI orchestrator
+        if: matrix.build_type == 'debug'
         run: |
-          apt-get update
-          apt-get install -y \
-            qemu-system-arm \
-            qemu-system-riscv32 \
-            build-essential \
-            git \
-            curl \
-            python3 \
-            python3-pip \
-            bc
-            
-      - name: Install Rust targets
-        run: rustup target add thumbv7m-none-eabi riscv32imac-unknown-none-elf
-        
-      - name: Install Python dependencies
-        run: pip3 install --break-system-packages pyyaml toml requests pytest
-        
-      - name: Make scripts executable
-        run: chmod +x *.sh ci/*.py
-        
-      - name: Run comprehensive CI testing
-        run: |
+          pip3 install --break-system-packages pyyaml toml requests pytest
+          chmod +x ci/*.py
           python3 ci/test_runner.py \
-            --targets arm riscv \
-            --build-type ${{ github.event.inputs.build_type || 'debug' }} \
-            --parallel \
+            --targets ${{ matrix.target }} \
+            --build-type ${{ matrix.build_type }} \
             --report
             
       - name: Upload test report
+        if: matrix.build_type == 'debug'
         uses: actions/upload-artifact@v4
         with:
-          name: ci-test-report
+          name: ci-test-report-${{ matrix.target }}
           path: ci_report.json
           retention-days: 30
 
@@ -281,7 +249,7 @@ jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: [build-and-test, integration-test]
+    needs: [build-and-test]
     if: github.ref == 'refs/heads/main' && needs.validate.outputs.should_run == 'true'
     
     steps:
