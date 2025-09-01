@@ -1,0 +1,121 @@
+# Docker Compose for karatOS Development and CI/CD
+version: '3.8'
+
+services:
+  # Main build and test environment
+  karatos-ci:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: karatos-ci-main
+    volumes:
+      - .:/workspace
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/workspace/target
+    working_dir: /workspace
+    environment:
+      - CARGO_HOME=/usr/local/cargo
+      - RUST_BACKTRACE=1
+      - LOG_LEVEL=debug
+    tty: true
+    stdin_open: true
+    command: /bin/bash
+
+  # ARM-specific build environment
+  karatos-arm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: karatos-arm-builder
+    volumes:
+      - .:/workspace
+      - cargo-cache:/usr/local/cargo/registry
+    working_dir: /workspace
+    environment:
+      - CARGO_HOME=/usr/local/cargo
+      - RUST_BACKTRACE=1
+    command: ./build.sh arm debug --verbose
+
+  # RISC-V specific build environment  
+  karatos-riscv:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: karatos-riscv-builder
+    volumes:
+      - .:/workspace
+      - cargo-cache:/usr/local/cargo/registry
+    working_dir: /workspace
+    environment:
+      - CARGO_HOME=/usr/local/cargo
+      - RUST_BACKTRACE=1
+    command: ./build.sh riscv debug --verbose
+
+  # Testing environment with Python orchestrator
+  karatos-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: tester
+    container_name: karatos-tester
+    volumes:
+      - .:/workspace
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/workspace/target
+    working_dir: /workspace
+    environment:
+      - CARGO_HOME=/usr/local/cargo
+      - RUST_BACKTRACE=1
+    command: python3 ci/test_runner.py --parallel --report
+
+  # Documentation generator
+  karatos-docs:
+    image: python:3.11-slim
+    container_name: karatos-docs
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    command: |
+      bash -c "
+        pip install mkdocs mkdocs-material &&
+        echo 'Generating documentation...' &&
+        python3 -c 'import json; print(json.dumps({\"project\": \"karatOS\", \"version\": \"0.1.0\"}, indent=2))' > docs_config.json
+      "
+
+  # Release artifact builder
+  karatos-release:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: artifacts
+    container_name: karatos-release
+    volumes:
+      - release-artifacts:/artifacts
+    command: |
+      sh -c "
+        cp /arm-kernel /artifacts/karatos-arm-cortex-m3.bin &&
+        cp /riscv-kernel /artifacts/karatos-riscv-rv32imac.bin &&
+        cd /artifacts &&
+        sha256sum *.bin > checksums.sha256 &&
+        ls -la
+      "
+
+volumes:
+  # Persistent cargo cache for faster builds
+  cargo-cache:
+    driver: local
+    
+  # Target directory cache
+  target-cache:
+    driver: local
+    
+  # Release artifacts storage
+  release-artifacts:
+    driver: local
+
+networks:
+  default:
+    name: karatos-network

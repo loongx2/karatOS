@@ -1,0 +1,327 @@
+name: karatOS CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'cicd_*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (debug/release)'
+        required: false
+        default: 'debug'
+        type: choice
+        options:
+        - debug
+        - release
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Environment validation
+  validate:
+    name: Validate Environment
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Check if CI should run
+        id: check
+        run: |
+          # Skip CI for documentation-only changes
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -qE '\.(md|txt|pdf)$' && ! git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -qvE '\.(md|txt|pdf)$'; then
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          fi
+
+  # Multi-architecture build and test
+  build-and-test:
+    name: Build and Test (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    needs: validate
+    if: needs.validate.outputs.should_run == 'true'
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [arm, riscv]
+        build_type: [debug, release]
+        
+    container:
+      image: rust:1.75-slim
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Cache Cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+            
+      - name: Cache target directory
+        uses: actions/cache@v3
+        with:
+          path: target/
+          key: ${{ runner.os }}-target-${{ matrix.target }}-${{ matrix.build_type }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-target-${{ matrix.target }}-${{ matrix.build_type }}-
+            ${{ runner.os }}-target-${{ matrix.target }}-
+            
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y \
+            qemu-system-arm \
+            qemu-system-riscv32 \
+            qemu-system-misc \
+            build-essential \
+            git \
+            curl \
+            python3 \
+            python3-pip
+            
+      - name: Install Rust targets
+        run: |
+          rustup target add thumbv7m-none-eabi riscv32imac-unknown-none-elf
+          
+      - name: Install Python dependencies
+        run: |
+          pip3 install pyyaml toml requests
+          
+      - name: Make scripts executable
+        run: chmod +x *.sh
+        
+      - name: Validate environment
+        run: |
+          rustc --version
+          cargo --version
+          qemu-system-arm --version
+          qemu-system-riscv32 --version
+          rustup target list --installed
+          
+      - name: Build ${{ matrix.target }} (${{ matrix.build_type }})
+        run: |
+          echo "Building ${{ matrix.target }} in ${{ matrix.build_type }} mode"
+          ./build.sh ${{ matrix.target }} ${{ matrix.build_type }} --verbose
+          
+      - name: Test ${{ matrix.target }} with QEMU
+        run: |
+          echo "Testing ${{ matrix.target }} with QEMU (30s timeout)"
+          ./build.sh ${{ matrix.target }} -t
+          
+      - name: Check binary size
+        run: |
+          case "${{ matrix.target }}" in
+            arm) TRIPLE="thumbv7m-none-eabi" ;;
+            riscv) TRIPLE="riscv32imac-unknown-none-elf" ;;
+          esac
+          
+          BINARY="target/${TRIPLE}/${{ matrix.build_type }}/kernel"
+          if [ -f "$BINARY" ]; then
+            SIZE=$(stat -c%s "$BINARY")
+            echo "Binary size: $SIZE bytes ($(echo "scale=1; $SIZE/1024" | bc) KB)"
+            echo "BINARY_SIZE=$SIZE" >> $GITHUB_ENV
+          else
+            echo "Error: Binary not found at $BINARY"
+            exit 1
+          fi
+          
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: karatos-${{ matrix.target }}-${{ matrix.build_type }}
+          path: |
+            target/${{ matrix.target == 'arm' && 'thumbv7m-none-eabi' || 'riscv32imac-unknown-none-elf' }}/${{ matrix.build_type }}/kernel
+          retention-days: 30
+
+  # Comprehensive testing with Python orchestrator
+  integration-test:
+    name: Integration Testing
+    runs-on: ubuntu-latest
+    needs: validate
+    if: needs.validate.outputs.should_run == 'true'
+    
+    container:
+      image: rust:1.75-slim
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y \
+            qemu-system-arm \
+            qemu-system-riscv32 \
+            build-essential \
+            git \
+            curl \
+            python3 \
+            python3-pip \
+            bc
+            
+      - name: Install Rust targets
+        run: rustup target add thumbv7m-none-eabi riscv32imac-unknown-none-elf
+        
+      - name: Install Python dependencies
+        run: pip3 install pyyaml toml requests pytest
+        
+      - name: Make scripts executable
+        run: chmod +x *.sh ci/*.py
+        
+      - name: Run comprehensive CI testing
+        run: |
+          python3 ci/test_runner.py \
+            --targets arm riscv \
+            --build-type ${{ github.event.inputs.build_type || 'debug' }} \
+            --parallel \
+            --report
+            
+      - name: Upload test report
+        uses: actions/upload-artifact@v3
+        with:
+          name: ci-test-report
+          path: ci_report.json
+          retention-days: 30
+
+  # Performance regression detection
+  performance-check:
+    name: Performance Check
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    if: needs.validate.outputs.should_run == 'true' && github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts/
+          
+      - name: Check binary size regression
+        run: |
+          echo "Checking for binary size regressions..."
+          
+          # Expected maximum sizes (in bytes)
+          ARM_DEBUG_MAX=900000    # ~900KB
+          ARM_RELEASE_MAX=30000   # ~30KB
+          RISCV_DEBUG_MAX=950000  # ~950KB  
+          RISCV_RELEASE_MAX=35000 # ~35KB
+          
+          error=0
+          
+          for artifact in artifacts/*/kernel; do
+            if [ -f "$artifact" ]; then
+              size=$(stat -c%s "$artifact")
+              name=$(basename $(dirname "$artifact"))
+              
+              echo "Checking $name: $size bytes"
+              
+              case "$name" in
+                *arm*debug*) 
+                  if [ $size -gt $ARM_DEBUG_MAX ]; then
+                    echo "❌ ARM debug binary too large: $size > $ARM_DEBUG_MAX"
+                    error=1
+                  fi ;;
+                *arm*release*)
+                  if [ $size -gt $ARM_RELEASE_MAX ]; then
+                    echo "❌ ARM release binary too large: $size > $ARM_RELEASE_MAX"
+                    error=1
+                  fi ;;
+                *riscv*debug*)
+                  if [ $size -gt $RISCV_DEBUG_MAX ]; then
+                    echo "❌ RISC-V debug binary too large: $size > $RISCV_DEBUG_MAX"
+                    error=1
+                  fi ;;
+                *riscv*release*)
+                  if [ $size -gt $RISCV_RELEASE_MAX ]; then
+                    echo "❌ RISC-V release binary too large: $size > $RISCV_RELEASE_MAX"
+                    error=1
+                  fi ;;
+              esac
+            fi
+          done
+          
+          if [ $error -eq 1 ]; then
+            echo "Binary size regression detected!"
+            exit 1
+          else
+            echo "✅ All binary sizes within acceptable limits"
+          fi
+
+  # Release automation (only on main branch)
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-and-test, integration-test]
+    if: github.ref == 'refs/heads/main' && needs.validate.outputs.should_run == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download release artifacts
+        uses: actions/download-artifact@v3
+        with:
+          pattern: karatos-*-release
+          path: release-artifacts/
+          
+      - name: Create release tag
+        id: tag
+        run: |
+          TAG="v$(date +%Y%m%d-%H%M%S)"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Creating tag: $TAG"
+          
+      - name: Package release
+        run: |
+          mkdir -p release/
+          
+          # Copy binaries with descriptive names
+          cp release-artifacts/karatos-arm-release/kernel release/karatos-arm-cortex-m3.bin
+          cp release-artifacts/karatos-riscv-release/kernel release/karatos-riscv-rv32imac.bin
+          
+          # Create checksums
+          cd release/
+          sha256sum *.bin > checksums.sha256
+          ls -la
+          
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: karatOS ${{ steps.tag.outputs.tag }}
+          body: |
+            Automated release of karatOS multi-architecture RTOS
+            
+            ## Binaries
+            - `karatos-arm-cortex-m3.bin` - ARM Cortex-M3 release binary
+            - `karatos-riscv-rv32imac.bin` - RISC-V RV32IMAC release binary
+            
+            ## Verification
+            Verify checksums with: `sha256sum -c checksums.sha256`
+            
+            Built from commit: ${{ github.sha }}
+          files: |
+            release/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
