@@ -19,6 +19,11 @@ cortex-m = { version = "0.7", optional = true }
 riscv-rt = { version = "0.12", optional = true }
 riscv = { version = "0.11", optional = true }
 
+# Async executor for event-driven scheduling
+embassy-executor = { version = "0.6", default-features = false, features = ["executor-thread"] }
+embassy-time = { version = "0.3", default-features = false, optional = true }
+critical-section = { version = "1.0", default-features = false, optional = true }
+
 # Common dependencies
 panic-halt = { version = "0.2" }
 nb = { version = "1.0", optional = true }
@@ -26,8 +31,11 @@ heapless = { version = "0.8" }
 
 [features]
 # Architecture features
-arm = ["cortex-m-rt", "cortex-m-semihosting", "cortex-m", "nb"]
-riscv = ["riscv-rt", "dep:riscv", "nb"]
+arm = ["cortex-m-rt", "cortex-m-semihosting", "cortex-m", "nb", "embassy-executor/arch-cortex-m", "embassy-time", "critical-section"]
+riscv = ["riscv-rt", "dep:riscv", "nb", "embassy-executor/arch-riscv32", "embassy-time", "critical-section"]
+
+# Test mode feature
+test_mode = []
 
 # Default feature set
 default = []

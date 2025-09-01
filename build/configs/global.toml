@@ -9,13 +9,13 @@ qemu_interactive_timeout = 300
 
 [targets.arm]
 triple = "thumbv7m-none-eabi"
-features = ["arm"]
+features = ["arm", "test_mode"]
 rustflags = ["-C", "linker=rust-lld", "-C", "link-arg=-Tmemory.x"]
 memory_template = "memory-arm.x"
 
 [targets.riscv]
 triple = "riscv32imac-unknown-none-elf"
-features = ["riscv"]
+features = ["riscv", "test_mode"]
 rustflags = ["-C", "linker=rust-lld", "-C", "link-arg=-Tmemory.x"]
 memory_template = "memory-riscv.x"
 
