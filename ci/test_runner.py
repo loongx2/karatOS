@@ -62,17 +62,26 @@ class KaratOSCI:
                 cmd,
                 cwd=self.workspace_dir,
                 capture_output=True,
-                text=True,
+                text=False,  # Capture as bytes to avoid UTF-8 decoding issues
                 timeout=timeout
             )
             duration = time.time() - start_time
             
+            # Safely decode output, replacing invalid UTF-8 sequences
+            try:
+                stdout = result.stdout.decode('utf-8', errors='replace') if result.stdout else ""
+                stderr = result.stderr.decode('utf-8', errors='replace') if result.stderr else ""
+            except Exception:
+                # Fallback: use repr() to safely represent the bytes
+                stdout = repr(result.stdout) if result.stdout else ""
+                stderr = repr(result.stderr) if result.stderr else ""
+            
             if result.returncode == 0:
                 logger.info(f"Command succeeded in {duration:.2f}s")
-                return True, result.stdout, duration
+                return True, stdout, duration
             else:
-                logger.error(f"Command failed: {result.stderr}")
-                return False, result.stderr, duration
+                logger.error(f"Command failed: {stderr}")
+                return False, stderr, duration
                 
         except subprocess.TimeoutExpired:
             duration = time.time() - start_time
