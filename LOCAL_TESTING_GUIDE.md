@@ -6,23 +6,22 @@
 
 ### **Python Orchestrator (Recommended)**
 ```bash
-# Fastest local testing - mirrors GitHub Actions workflow
-python3 ci/test_runner.py --targets arm riscv --build-type debug --parallel --report
+# Test release builds (matches GitHub Actions) with clean state
+python3 ci/test_runner.py --targets arm riscv --build-type release --parallel --report
 
-# Test specific targets
+# Test specific targets with clean builds
 python3 ci/test_runner.py --targets arm --build-type release --report
-python3 ci/test_runner.py --targets riscv --build-type debug --report
+python3 ci/test_runner.py --targets riscv --build-type release --report
 ```
 
 ### **Direct Build Script Testing**
 ```bash
-# Quick individual builds with testing
-./build.sh arm debug --test
-./build.sh riscv release --test
+# Test release builds with clean state (matches GitHub Actions exactly)
+./build.sh arm release --clean --test
+./build.sh riscv release --clean --test
 
-# Test all targets
-./build.sh all debug --test
-./build.sh all release --test
+# Test all targets with clean state
+./build.sh all release --clean --test
 ```
 
 ### **Docker-based Testing**
@@ -34,15 +33,19 @@ python3 ci/docker_ci.py pipeline
 
 ## 📊 Expected Test Results
 
-✅ **Binary Size Targets:**
-- ARM Debug: ~886KB (under 900KB limit)
-- ARM Release: ~24KB (under 30KB limit)
-- RISC-V Debug: ~943KB (under 950KB limit)
-- RISC-V Release: ~33KB (under 40KB limit)
+✅ **Release Binary Size Targets (GitHub Actions only tests these):**
+- ARM Release: ~25KB (under 30KB limit)
+- RISC-V Release: ~34KB (under 35KB limit)
 
 ✅ **All QEMU tests should pass with 30s timeout**
 
 ✅ **Python orchestrator provides detailed reporting**
+
+## 🚀 GitHub Actions Status
+The CI/CD pipeline now only tests release builds with clean state for:
+- Faster CI execution
+- More reliable builds
+- Focus on production-ready binaries
 
 ## 🚀 Workflow
 

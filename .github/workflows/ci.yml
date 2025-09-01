@@ -131,7 +131,7 @@ jobs:
       - name: Test ${{ matrix.target }} with QEMU
         run: |
           echo "Testing ${{ matrix.target }} with QEMU (30s timeout)"
-          ./build.sh ${{ matrix.target }} ${{ matrix.build_type }} --test
+          ./build.sh ${{ matrix.target }} ${{ matrix.build_type }} --clean --test
           
       - name: Check binary size
         run: |
