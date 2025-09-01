@@ -25,7 +25,9 @@ mod riscv_rt_config;
 
 // Import scheduler for task management
 mod scheduler;
-use scheduler::{Task, EventPriority, post_event_with_priority, add_task};
+use scheduler::{Task, TaskPriority, EventPriority, post_priority_event, 
+                add_priority_task, schedule_with_priority, 
+                update_global_timer, has_ready_work, current_priority_level};
 
 // -------- Scheduling Example Tasks --------
 
@@ -54,157 +56,306 @@ fn u32_to_str(mut num: u32) -> [u8; 10] {
     buffer
 }
 
-// -------- Scheduling Example Tasks --------
+// -------- Enhanced Scheduling Test Tasks --------
 
-// Task 1: High priority periodic task
-fn task_high_priority() {
+// Task 1: Critical priority system task
+fn task_critical_system() {
     static mut COUNTER: u32 = 0;
     unsafe {
         COUNTER += 1;
         let counter_bytes = u32_to_str(COUNTER);
         let counter_str = core::str::from_utf8(&counter_bytes).unwrap_or("0");
-        let msg = "Task 1 (High Priority): Counter = ";
-        arch::early_println(msg);
+        arch::early_println("🚨 CRITICAL: System task #");
         arch::early_println(counter_str);
+        arch::early_println(" executing");
     }
 }
 
-// Task 2: Normal priority background task
-fn task_normal_priority() {
+// Task 2: High priority real-time task
+fn task_high_realtime() {
     static mut COUNTER: u32 = 0;
     unsafe {
         COUNTER += 1;
         let counter_bytes = u32_to_str(COUNTER);
         let counter_str = core::str::from_utf8(&counter_bytes).unwrap_or("0");
-        let msg = "Task 2 (Normal Priority): Processing data #";
-        arch::early_println(msg);
+        arch::early_println("⚡ HIGH: Real-time task #");
         arch::early_println(counter_str);
+        arch::early_println(" processing");
     }
 }
 
-// Task 3: Low priority maintenance task
-fn task_low_priority() {
+// Task 3: Normal priority application task
+fn task_normal_app() {
     static mut COUNTER: u32 = 0;
     unsafe {
         COUNTER += 1;
         let counter_bytes = u32_to_str(COUNTER);
         let counter_str = core::str::from_utf8(&counter_bytes).unwrap_or("0");
-        let msg = "Task 3 (Low Priority): Maintenance cycle ";
-        arch::early_println(msg);
+        arch::early_println("📱 NORMAL: App task #");
         arch::early_println(counter_str);
+        arch::early_println(" running");
     }
 }
 
-// Task 4: Event-driven task that waits for events
-fn task_event_driven() {
+// Task 4: Low priority background task
+fn task_low_background() {
     static mut COUNTER: u32 = 0;
     unsafe {
         COUNTER += 1;
         let counter_bytes = u32_to_str(COUNTER);
         let counter_str = core::str::from_utf8(&counter_bytes).unwrap_or("0");
-        let msg = "Task 4 (Event-Driven): Handling event ";
-        arch::early_println(msg);
+        arch::early_println("🔄 LOW: Background task #");
         arch::early_println(counter_str);
+        arch::early_println(" cleaning");
     }
 }
 
-// -------- Main Scheduling Loop --------
-fn run_scheduler_example() -> ! {
-    arch::early_println("=== karatOS Scheduler Example Starting ===");
+// Task 5: Event-driven message processing task
+fn task_message_processor() {
+    static mut COUNTER: u32 = 0;
+    unsafe {
+        COUNTER += 1;
+        let counter_bytes = u32_to_str(COUNTER);
+        let counter_str = core::str::from_utf8(&counter_bytes).unwrap_or("0");
+        arch::early_println("📨 EVENT: Message #");
+        arch::early_println(counter_str);
+        arch::early_println(" handled");
+    }
+}
 
-    // Create and spawn tasks
-    let task1 = Task::new(1);
-    let task2 = Task::new(2);
-    let task3 = Task::new(3);
-    let task4 = Task::new(4);
+// Task 6: Timer-based periodic task
+fn task_timer_periodic() {
+    static mut COUNTER: u32 = 0;
+    unsafe {
+        COUNTER += 1;
+        let counter_bytes = u32_to_str(COUNTER);
+        let counter_str = core::str::from_utf8(&counter_bytes).unwrap_or("0");
+        arch::early_println("⏱️  TIMER: Periodic #");
+        arch::early_println(counter_str);
+        arch::early_println(" tick");
+    }
+}
 
-    // Spawn tasks with different priorities
-    if let Ok(id1) = add_task(task1) {
-        let id_bytes = u32_to_str(id1 as u32);
-        let id_str = core::str::from_utf8(&id_bytes).unwrap_or("0");
-        arch::early_println("Spawned Task 1 (High Priority) with ID: ");
-        arch::early_println(id_str);
+// -------- Enhanced Multi-Priority Scheduler Test --------
+fn run_enhanced_scheduler_test() -> ! {
+    arch::early_println("=== karatOS Enhanced Multi-Priority Scheduler Test ===");
+    arch::early_println("Features: Priority preemption, message-passing optimization,");
+    arch::early_println("lock-free queues, timer integration, architecture-agnostic");
+    arch::early_println("");
+
+    // Create tasks with different priorities
+    let critical_task = Task::with_priority(1, TaskPriority::Critical);
+    let high_task = Task::with_priority(2, TaskPriority::High);
+    let normal_task1 = Task::with_priority(3, TaskPriority::Normal);
+    let normal_task2 = Task::with_priority(4, TaskPriority::Normal);
+    let low_task1 = Task::with_priority(5, TaskPriority::Low);
+    let low_task2 = Task::with_priority(6, TaskPriority::Low);
+
+    // Spawn tasks using multi-priority scheduler
+    match add_priority_task(critical_task) {
+        Ok(id) => {
+            arch::early_println("✅ Spawned Critical System Task ID: ");
+            let id_str = u32_to_str(id as u32);
+            arch::early_println(core::str::from_utf8(&id_str).unwrap_or("0"));
+        },
+        Err(_) => arch::early_println("❌ Failed to spawn Critical Task"),
     }
 
-    if let Ok(id2) = add_task(task2) {
-        let id_bytes = u32_to_str(id2 as u32);
-        let id_str = core::str::from_utf8(&id_bytes).unwrap_or("0");
-        arch::early_println("Spawned Task 2 (Normal Priority) with ID: ");
-        arch::early_println(id_str);
+    match add_priority_task(high_task) {
+        Ok(id) => {
+            arch::early_println("✅ Spawned High Priority Real-time Task ID: ");
+            let id_str = u32_to_str(id as u32);
+            arch::early_println(core::str::from_utf8(&id_str).unwrap_or("0"));
+        },
+        Err(_) => arch::early_println("❌ Failed to spawn High Priority Task"),
     }
 
-    if let Ok(id3) = add_task(task3) {
-        let id_bytes = u32_to_str(id3 as u32);
-        let id_str = core::str::from_utf8(&id_bytes).unwrap_or("0");
-        arch::early_println("Spawned Task 3 (Low Priority) with ID: ");
-        arch::early_println(id_str);
+    match add_priority_task(normal_task1) {
+        Ok(id) => {
+            arch::early_println("✅ Spawned Normal App Task ID: ");
+            let id_str = u32_to_str(id as u32);
+            arch::early_println(core::str::from_utf8(&id_str).unwrap_or("0"));
+        },
+        Err(_) => arch::early_println("❌ Failed to spawn Normal Task 1"),
     }
 
-    if let Ok(id4) = add_task(task4) {
-        let id_bytes = u32_to_str(id4 as u32);
-        let id_str = core::str::from_utf8(&id_bytes).unwrap_or("0");
-        arch::early_println("Spawned Task 4 (Event-Driven) with ID: ");
-        arch::early_println(id_str);
+    match add_priority_task(normal_task2) {
+        Ok(id) => {
+            arch::early_println("✅ Spawned Message Processor Task ID: ");
+            let id_str = u32_to_str(id as u32);
+            arch::early_println(core::str::from_utf8(&id_str).unwrap_or("0"));
+        },
+        Err(_) => arch::early_println("❌ Failed to spawn Normal Task 2"),
     }
 
-    arch::early_println("=== All Tasks Spawned, Starting Round-Robin Scheduler ===");
+    match add_priority_task(low_task1) {
+        Ok(id) => {
+            arch::early_println("✅ Spawned Low Background Task ID: ");
+            let id_str = u32_to_str(id as u32);
+            arch::early_println(core::str::from_utf8(&id_str).unwrap_or("0"));
+        },
+        Err(_) => arch::early_println("❌ Failed to spawn Low Task 1"),
+    }
+
+    match add_priority_task(low_task2) {
+        Ok(id) => {
+            arch::early_println("✅ Spawned Timer Periodic Task ID: ");
+            let id_str = u32_to_str(id as u32);
+            arch::early_println(core::str::from_utf8(&id_str).unwrap_or("0"));
+        },
+        Err(_) => arch::early_println("❌ Failed to spawn Low Task 2"),
+    }
+
+    arch::early_println("");
+    arch::early_println("=== Starting Multi-Priority Preemptive Scheduler ===");
+    arch::early_println("Priority order: Critical > High > Normal > Low");
+    arch::early_println("Features: Message-passing hot-slot, lock-free events, timers");
+    arch::early_println("");
 
     let mut cycle_counter = 0u32;
-    let mut current_task_id = 0u32;
-
-    loop {
+        let mut timer_counter = 0u32;    loop {
         cycle_counter += 1;
-        current_task_id = (current_task_id % 4) + 1; // Cycle through tasks 1-4
+        timer_counter += 1;
 
-        // Execute the current task
-        match current_task_id {
-            1 => {
-                task_high_priority();
-                arch::early_println(" [Task 1 completed]");
-            },
-            2 => {
-                task_normal_priority();
-                arch::early_println(" [Task 2 completed]");
-            },
-            3 => {
-                task_low_priority();
-                arch::early_println(" [Task 3 completed]");
-            },
-            4 => {
-                task_event_driven();
-                arch::early_println(" [Task 4 completed]");
-            },
-            _ => arch::early_println("Unknown task ID"),
-        }
+        // Update global timer (simulates timer interrupt)
+        update_global_timer(timer_counter);
 
-        // Every 10 cycles, post an event to demonstrate event handling
-        if cycle_counter % 10 == 0 {
-            let posted = post_event_with_priority(100, EventPriority::High);
-            if posted {
-                arch::early_println("=== Posted high-priority event ===");
+        // Run the enhanced multi-priority scheduler
+        if let Some(current_task) = schedule_with_priority() {
+            let priority_level = current_priority_level();
+            
+            // Execute task based on ID and priority
+            match (current_task.id, current_task.priority) {
+                (1, TaskPriority::Critical) => {
+                    task_critical_system();
+                    arch::early_println(" [Critical task completed]");
+                },
+                (2, TaskPriority::High) => {
+                    task_high_realtime();
+                    arch::early_println(" [High priority task completed]");
+                },
+                (3, TaskPriority::Normal) => {
+                    task_normal_app();
+                    arch::early_println(" [Normal app task completed]");
+                },
+                (4, TaskPriority::Normal) => {
+                    task_message_processor();
+                    arch::early_println(" [Message processor completed]");
+                },
+                (5, TaskPriority::Low) => {
+                    task_low_background();
+                    arch::early_println(" [Background task completed]");
+                },
+                (6, TaskPriority::Low) => {
+                    task_timer_periodic();
+                    arch::early_println(" [Timer task completed]");
+                },
+                _ => {
+                    arch::early_println("⚠️  Unknown task: ");
+                    let id_str = u32_to_str(current_task.id as u32);
+                    arch::early_println(core::str::from_utf8(&id_str).unwrap_or("?"));
+                },
             }
+
+            // Show current priority level
+            let priority_str = match priority_level {
+                TaskPriority::Critical => " 🚨 CRITICAL",
+                TaskPriority::High => " ⚡ HIGH",
+                TaskPriority::Normal => " 📱 NORMAL", 
+                TaskPriority::Low => " 🔄 LOW",
+            };
+            arch::early_println(priority_str);
+        } else {
+            arch::early_println("💤 No ready tasks - CPU can sleep");
         }
 
-        // Every 25 cycles, post a normal event
-        if cycle_counter % 25 == 0 {
-            let posted = post_event_with_priority(200, EventPriority::Normal);
-            if posted {
-                arch::early_println("=== Posted normal-priority event ===");
+        // Demonstrate event posting and priority handling
+        match cycle_counter % 50 {
+            5 => {
+                // Post critical event (simulates interrupt)
+                if post_priority_event(0x10, EventPriority::Critical) {
+                    arch::early_println("🚨 Posted CRITICAL interrupt event");
+                }
+            },
+            15 => {
+                // Post high priority event (simulates real-time deadline)
+                if post_priority_event(0x20, EventPriority::High) {
+                    arch::early_println("⚡ Posted HIGH priority real-time event");
+                }
+            },
+            25 => {
+                // Post normal event (simulates user interaction)
+                if post_priority_event(0x30, EventPriority::Normal) {
+                    arch::early_println("📱 Posted NORMAL user event");
+                }
+            },
+            35 => {
+                // Post low priority event (simulates background work)
+                if post_priority_event(0x40, EventPriority::Low) {
+                    arch::early_println("🔄 Posted LOW background event");
+                }
+            },
+            _ => {}
+        }
+
+        // Display scheduler statistics
+        if cycle_counter % 100 == 0 {
+            let (active_tasks, events, timer) = scheduler::scheduler_stats();
+            
+            arch::early_println("");
+            arch::early_println("📊 === Scheduler Statistics ===");
+            arch::early_println("Cycle: ");
+            let cycle_str = u32_to_str(cycle_counter);
+            arch::early_println(core::str::from_utf8(&cycle_str).unwrap_or("0"));
+            
+            arch::early_println(" | Active Tasks: ");
+            let tasks_str = u32_to_str(active_tasks);
+            arch::early_println(core::str::from_utf8(&tasks_str).unwrap_or("0"));
+            
+            arch::early_println(" | Events: ");
+            let events_str = u32_to_str(events);
+            arch::early_println(core::str::from_utf8(&events_str).unwrap_or("0"));
+            
+            arch::early_println(" | Timer: ");
+            let timer_str = u32_to_str(timer as u32);
+            arch::early_println(core::str::from_utf8(&timer_str).unwrap_or("0"));
+            
+            arch::early_println("");
+            
+            if has_ready_work() {
+                arch::early_println("🟢 Scheduler has ready work");
+            } else {
+                arch::early_println("🔴 No ready work - entering low power mode");
             }
+            arch::early_println("");
         }
 
-        // Print scheduler status every 50 cycles
-        if cycle_counter % 50 == 0 {
-            let cycle_bytes = u32_to_str(cycle_counter);
-            let cycle_str = core::str::from_utf8(&cycle_bytes).unwrap_or("0");
-            arch::early_println("=== Scheduler cycle: ");
-            arch::early_println(cycle_str);
-            arch::early_println(" ===");
+        // Demonstrate preemption scenario
+        if cycle_counter % 200 == 0 {
+            arch::early_println("🔄 === Preemption Test Scenario ===");
+            arch::early_println("Posting multiple events to test priority handling...");
+            
+            // Post events in reverse priority order to test preemption
+            let _ = post_priority_event(0x50, EventPriority::Low);
+            let _ = post_priority_event(0x51, EventPriority::Normal);
+            let _ = post_priority_event(0x52, EventPriority::High);
+            let _ = post_priority_event(0x53, EventPriority::Critical);
+            
+            arch::early_println("Posted: Low->Normal->High->Critical");
+            arch::early_println("Expected execution order: Critical->High->Normal->Low");
+            arch::early_println("");
         }
 
-        // Small delay between task switches
-        for _ in 0..5000 {
-            unsafe { core::arch::asm!("nop"); }
+        // Small delay for readability (architecture-agnostic)
+        for _ in 0..8000 {
+            scheduler::yield_now();
+        }
+
+        // Demonstrate sleep functionality periodically
+        if cycle_counter % 300 == 0 {
+            arch::early_println("😴 Testing sleep functionality...");
+            // Note: In a real implementation, tasks would call sleep_current()
+            // Here we just demonstrate the timer update mechanism
         }
     }
 }
@@ -217,17 +368,17 @@ fn main() -> ! {
     hprintln!("Hello from ARM Cortex-M3!");
     arch::early_println("ARM UART initialized");
 
-    // Run the scheduler example instead of exiting
-    run_scheduler_example()
+    // Run the enhanced scheduler test
+    run_enhanced_scheduler_test()
 }
 
 /// Main entry point for the kernel
 /// This function is called by the architecture-specific boot code
 #[no_mangle]
 pub fn kernel_main() -> ! {
-    // Initialize and run the kernel with scheduler example
+    // Initialize and run the kernel with enhanced scheduler test
     kernel::init();
-    run_scheduler_example()
+    run_enhanced_scheduler_test()
 }
 
 // Architecture-specific entry points
@@ -237,5 +388,5 @@ pub fn kernel_main() -> ! {
 #[riscv_rt::entry]
 fn main() -> ! {
     arch::early_println("RISC-V entry point reached");
-    run_scheduler_example()
+    run_enhanced_scheduler_test()
 }

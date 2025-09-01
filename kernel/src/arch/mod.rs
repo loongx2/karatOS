@@ -55,6 +55,15 @@ pub fn arch_yield() {
     unsafe { core::arch::asm!("wfi") };
 }
 
+/// Architecture-specific wait for interrupt (power-saving)
+pub fn wait_for_interrupt() {
+    #[cfg(target_arch = "arm")]
+    unsafe { core::arch::asm!("wfe") }; // ARM uses WFE (Wait For Event)
+    
+    #[cfg(target_arch = "riscv32")]
+    unsafe { core::arch::asm!("wfi") }; // RISC-V uses WFI (Wait For Interrupt)
+}
+
 /// Interrupt control functions
 pub fn disable_interrupts() {
     #[cfg(target_arch = "arm")]
