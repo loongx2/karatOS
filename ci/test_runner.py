@@ -107,11 +107,11 @@ class KaratOSCI:
         self.results['builds'].append(result)
         return result
 
-    def test_target(self, target: str) -> TestResult:
+    def test_target(self, target: str, build_type: str = "debug") -> TestResult:
         """Test specific target with QEMU"""
-        logger.info(f"Testing {target} with QEMU")
+        logger.info(f"Testing {target} with QEMU ({build_type})")
         
-        cmd = ["./build.sh", target, "-t"]
+        cmd = ["./build.sh", target, build_type, "--test"]
         success, output, duration = self.run_command(cmd, timeout=60)
         
         result = TestResult(
@@ -171,13 +171,13 @@ class KaratOSCI:
                     
         return results
 
-    def run_parallel_tests(self, targets: List[str]) -> List[TestResult]:
+    def run_parallel_tests(self, targets: List[str], build_type: str = "debug") -> List[TestResult]:
         """Run tests in parallel"""
-        logger.info(f"Starting parallel tests for {targets}")
+        logger.info(f"Starting parallel tests for {targets} ({build_type})")
         
         with ThreadPoolExecutor(max_workers=len(targets)) as executor:
             future_to_target = {
-                executor.submit(self.test_target, target): target 
+                executor.submit(self.test_target, target, build_type): target 
                 for target in targets
             }
             
@@ -324,9 +324,9 @@ def main():
     
     # Run tests
     if args.parallel:
-        test_results = ci.run_parallel_tests(args.targets)
+        test_results = ci.run_parallel_tests(args.targets, args.build_type)
     else:
-        test_results = [ci.test_target(target) for target in args.targets]
+        test_results = [ci.test_target(target, args.build_type) for target in args.targets]
     
     # Generate report
     if args.report:
