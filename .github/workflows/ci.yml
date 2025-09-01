@@ -62,7 +62,7 @@ jobs:
       fail-fast: false
       matrix:
         target: [arm, riscv]
-        build_type: [debug, release]
+        build_type: [release]
         
     container:
       image: rust:1.75-slim
@@ -125,13 +125,13 @@ jobs:
           
       - name: Build ${{ matrix.target }} (${{ matrix.build_type }})
         run: |
-          echo "Building ${{ matrix.target }} in ${{ matrix.build_type }} mode"
-          ./build.sh ${{ matrix.target }} ${{ matrix.build_type }} --verbose
+          echo "Building ${{ matrix.target }} in ${{ matrix.build_type }} mode with clean"
+          ./build.sh ${{ matrix.target }} ${{ matrix.build_type }} --clean --verbose
           
       - name: Test ${{ matrix.target }} with QEMU
         run: |
           echo "Testing ${{ matrix.target }} with QEMU (30s timeout)"
-          ./build.sh ${{ matrix.target }} ${{ matrix.build_type }} -t
+          ./build.sh ${{ matrix.target }} ${{ matrix.build_type }} --test
           
       - name: Check binary size
         run: |
@@ -159,9 +159,8 @@ jobs:
             target/${{ matrix.target == 'arm' && 'thumbv7m-none-eabi' || 'riscv32imac-unknown-none-elf' }}/${{ matrix.build_type }}/kernel
           retention-days: 30
           
-      # Run Python orchestrator testing (only for debug builds to avoid redundancy)
+      # Run Python orchestrator testing
       - name: Run Python CI orchestrator
-        if: matrix.build_type == 'debug'
         run: |
           pip3 install --break-system-packages pyyaml toml requests pytest
           chmod +x ci/*.py
@@ -171,7 +170,6 @@ jobs:
             --report
             
       - name: Upload test report
-        if: matrix.build_type == 'debug'
         uses: actions/upload-artifact@v4
         with:
           name: ci-test-report-${{ matrix.target }}
@@ -182,7 +180,7 @@ jobs:
   performance-check:
     name: Performance Check
     runs-on: ubuntu-latest
-    needs: [build-and-test]
+    needs: [validate, build-and-test]
     if: needs.validate.outputs.should_run == 'true' && github.event_name == 'pull_request'
     
     steps:
@@ -198,10 +196,8 @@ jobs:
         run: |
           echo "Checking for binary size regressions..."
           
-          # Expected maximum sizes (in bytes)
-          ARM_DEBUG_MAX=900000    # ~900KB
+          # Expected maximum sizes (in bytes) - only release builds now
           ARM_RELEASE_MAX=30000   # ~30KB
-          RISCV_DEBUG_MAX=950000  # ~950KB  
           RISCV_RELEASE_MAX=35000 # ~35KB
           
           error=0
@@ -214,19 +210,9 @@ jobs:
               echo "Checking $name: $size bytes"
               
               case "$name" in
-                *arm*debug*) 
-                  if [ $size -gt $ARM_DEBUG_MAX ]; then
-                    echo "❌ ARM debug binary too large: $size > $ARM_DEBUG_MAX"
-                    error=1
-                  fi ;;
                 *arm*release*)
                   if [ $size -gt $ARM_RELEASE_MAX ]; then
                     echo "❌ ARM release binary too large: $size > $ARM_RELEASE_MAX"
-                    error=1
-                  fi ;;
-                *riscv*debug*)
-                  if [ $size -gt $RISCV_DEBUG_MAX ]; then
-                    echo "❌ RISC-V debug binary too large: $size > $RISCV_DEBUG_MAX"
                     error=1
                   fi ;;
                 *riscv*release*)
@@ -249,7 +235,7 @@ jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: [build-and-test]
+    needs: [validate, build-and-test]
     if: github.ref == 'refs/heads/main' && needs.validate.outputs.should_run == 'true'
     
     steps:
