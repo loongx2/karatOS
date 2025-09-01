@@ -35,9 +35,14 @@ jobs:
         id: check
         run: |
           # Skip CI for documentation-only changes
-          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -qE '\.(md|txt|pdf)$' && ! git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -qvE '\.(md|txt|pdf)$'; then
-            echo "should_run=false" >> $GITHUB_OUTPUT
+          if [ "${{ github.event.before }}" != "" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -qE '\.(md|txt|pdf)$' && ! git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -qvE '\.(md|txt|pdf)$'; then
+              echo "should_run=false" >> $GITHUB_OUTPUT
+            else
+              echo "should_run=true" >> $GITHUB_OUTPUT
+            fi
           else
+            # Always run CI for initial pushes, force pushes, or when before commit is unavailable
             echo "should_run=true" >> $GITHUB_OUTPUT
           fi
 
@@ -121,7 +126,7 @@ jobs:
       - name: Test ${{ matrix.target }} with QEMU
         run: |
           echo "Testing ${{ matrix.target }} with QEMU (30s timeout)"
-          ./build.sh ${{ matrix.target }} -t
+          ./build.sh ${{ matrix.target }} ${{ matrix.build_type }} -t
           
       - name: Check binary size
         run: |
@@ -133,7 +138,8 @@ jobs:
           BINARY="target/${TRIPLE}/${{ matrix.build_type }}/kernel"
           if [ -f "$BINARY" ]; then
             SIZE=$(stat -c%s "$BINARY")
-            echo "Binary size: $SIZE bytes ($(echo "scale=1; $SIZE/1024" | bc) KB)"
+            KB=$((SIZE / 1024))
+            echo "Binary size: $SIZE bytes (${KB} KB)"
             echo "BINARY_SIZE=$SIZE" >> $GITHUB_ENV
           else
             echo "Error: Binary not found at $BINARY"
