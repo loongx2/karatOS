@@ -52,7 +52,8 @@ validate_target() {
     local target="$1"
     case "$target" in
         arm|riscv|all) return 0 ;;
-        *) error "Invalid target: $target. Must be 'arm', 'riscv', or 'all'" ;;
+        arm-v8m|riscv-imc|riscv64) return 0 ;;
+        *) error "Invalid target: $target. Must be 'arm', 'arm-v8m', 'riscv', 'riscv-imc', 'riscv64', or 'all'" ;;
     esac
 }
 
@@ -155,7 +156,9 @@ get_qemu_config() {
         # Default board mapping
         case "$target" in
             arm) key="qemu.arm_lm3s6965" ;;
-            riscv) key="qemu.riscv_qemu" ;;
+            arm-v8m) key="qemu.arm_mps3_an547" ;;
+            riscv|riscv-imc) key="qemu.riscv_qemu" ;;
+            riscv64) key="qemu.riscv_qemu_64" ;;
             *) key="qemu.${target}_qemu" ;;
         esac
     fi
@@ -170,8 +173,17 @@ get_qemu_config() {
         "arm-lm3s6965"|"arm-")
             args="-M lm3s6965evb -nographic -semihosting-config enable=on,target=native -serial mon:stdio"
             ;;
-        "riscv-qemu"|"riscv-")
+        "arm-v8m-mps3-an547"|"arm-v8m-an547"|"arm-v8m-")
+            args="-M mps3-an547 -nographic -kernel KERNEL_ELF -serial mon:stdio"
+            ;;
+        "arm-v8m-musca-b1")
+            args="-M musca-b1 -nographic -kernel KERNEL_ELF -serial mon:stdio"
+            ;;
+        "riscv-qemu"|"riscv-"|"riscv-imc-qemu"|"riscv-imc-")
             args="-machine virt -cpu rv32 -smp 1 -m 128M -nographic -bios none -serial mon:stdio"
+            ;;
+        "riscv64-qemu"|"riscv64-")
+            args="-machine virt -cpu rv64 -smp 1 -m 128M -nographic -bios none -serial mon:stdio"
             ;;
         *)
             args="-nographic"

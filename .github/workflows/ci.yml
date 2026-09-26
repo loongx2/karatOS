@@ -61,11 +61,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [arm, riscv]
+        include:
+          - target: arm
+            triple: thumbv7m-none-eabi
+          - target: riscv
+            triple: riscv32imac-unknown-none-elf
+          - target: riscv-imc
+            triple: riscv32imc-unknown-none-elf
+          - target: riscv64
+            triple: riscv64gc-unknown-none-elf
+          - target: arm-v8m
+            triple: thumbv8m.main-none-eabi
         build_type: [release]
         
     container:
-      image: rust:1.75-slim
+      image: rust:1.98-slim
       
     steps:
       - name: Checkout code
@@ -77,6 +87,7 @@ jobs:
           apt-get install -y \
             qemu-system-arm \
             qemu-system-riscv32 \
+            qemu-system-riscv64 \
             qemu-system-misc \
             build-essential \
             git \
@@ -86,7 +97,12 @@ jobs:
             
       - name: Install Rust targets
         run: |
-          rustup target add thumbv7m-none-eabi riscv32imac-unknown-none-elf
+          rustup target add \
+            thumbv7m-none-eabi \
+            thumbv8m.main-none-eabi \
+            riscv32imac-unknown-none-elf \
+            riscv32imc-unknown-none-elf \
+            riscv64gc-unknown-none-elf
           
       - name: Install Python dependencies
         run: |
@@ -117,7 +133,10 @@ jobs:
         run: |
           case "${{ matrix.target }}" in
             arm) TRIPLE="thumbv7m-none-eabi" ;;
+            arm-v8m) TRIPLE="thumbv8m.main-none-eabi" ;;
             riscv) TRIPLE="riscv32imac-unknown-none-elf" ;;
+            riscv-imc) TRIPLE="riscv32imc-unknown-none-elf" ;;
+            riscv64) TRIPLE="riscv64gc-unknown-none-elf" ;;
           esac
           
           BINARY="target/${TRIPLE}/${{ matrix.build_type }}/kernel"
@@ -130,13 +149,25 @@ jobs:
             echo "Error: Binary not found at $BINARY"
             exit 1
           fi
+
+      # Milestone 3: hard gate on the 64 kB ROM/SRAM contract.
+      # Uses build/modules/size.sh so CI and local builds share one source of truth.
+      - name: Enforce 64kB memory footprint budget
+        run: |
+          bash -c '
+            source build/modules/core.sh
+            source build/modules/config.sh
+            source build/modules/size.sh
+            report_footprint "${{ matrix.target }}" "${{ matrix.build_type }}"
+            check_size_budget "${{ matrix.target }}" "${{ matrix.build_type }}"
+          '
           
       - name: Upload binary artifacts
         uses: actions/upload-artifact@v4
         with:
           name: karatos-${{ matrix.target }}-${{ matrix.build_type }}
           path: |
-            target/${{ matrix.target == 'arm' && 'thumbv7m-none-eabi' || 'riscv32imac-unknown-none-elf' }}/${{ matrix.build_type }}/kernel
+            target/${{ matrix.triple }}/${{ matrix.build_type }}/kernel
           retention-days: 30
           
       # Run Python orchestrator testing

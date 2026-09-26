@@ -16,7 +16,7 @@ fn print_char(c: u8) {
     let _ = hprint!("{}", c as char);
 }
 
-#[cfg(target_arch = "riscv32")]
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 fn print_char(c: u8) {
     // RISC-V: Use memory-mapped UART
     const UART_BASE: *mut u8 = 0x10000000 as *mut u8;

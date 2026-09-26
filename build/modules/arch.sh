@@ -10,11 +10,11 @@ setup_build_environment() {
     log_info "Setting up build environment for $target"
 
     case "$target" in
-        arm)
-            setup_arm_environment "$board"
+        arm|arm-v8m)
+            setup_arm_environment "$board" "$target"
             ;;
-        riscv)
-            setup_riscv_environment "$board"
+        riscv|riscv-imc|riscv64)
+            setup_riscv_environment "$board" "$target"
             ;;
         *)
             error "Unsupported architecture: $target"
@@ -23,26 +23,45 @@ setup_build_environment() {
 }
 
 # ARM-specific setup
+# Usage: setup_arm_environment <board> [variant]
+#   variant: arm (Cortex-M3/M4/M7, thumbv7m) | arm-v8m (Cortex-M33/M55, thumbv8m.main)
 setup_arm_environment() {
     local board="$1"
+    local variant="${2:-arm}"
 
-    log_debug "Setting up ARM environment for board: $board"
-
-    # Export ARM-specific variables
-    export ARM_TARGET="thumbv7m-none-eabi"
-    export ARM_FEATURES="arm"
+    log_debug "Setting up ARM environment for board: $board (variant: $variant)"
 
     # Board-specific configuration
     case "$board" in
-        lm3s6965)
+        mps3-an547|an547)
+            export ARM_BOARD="mps3-an547"
+            export ARM_QEMU_MACHINE="mps3-an547"
+            # MPS3-AN547 hosts Cortex-M55 (latest) / M33 images - v8-M mainline
+            variant="arm-v8m"
+            ;;
+        musca-b1)
+            export ARM_BOARD="musca-b1"
+            export ARM_QEMU_MACHINE="musca-b1"
+            variant="arm-v8m"
+            ;;
+        lm3s6965|*)
             export ARM_BOARD="lm3s6965evb"
             export ARM_QEMU_MACHINE="lm3s6965evb"
             ;;
+    esac
+
+    # Variant-specific toolchain triple
+    case "$variant" in
+        arm-v8m)
+            export ARM_TARGET="thumbv8m.main-none-eabi"
+            ;;
         *)
-            export ARM_BOARD="lm3s6965evb"  # default
-            export ARM_QEMU_MACHINE="lm3s6965evb"
+            export ARM_TARGET="thumbv7m-none-eabi"
             ;;
     esac
+
+    export ARM_FEATURES="arm"
+    export ARM_VARIANT="$variant"
 
     log_debug "ARM_TARGET=$ARM_TARGET"
     log_debug "ARM_FEATURES=$ARM_FEATURES"
@@ -50,26 +69,37 @@ setup_arm_environment() {
 }
 
 # RISC-V-specific setup
+# Usage: setup_riscv_environment <board> [variant]
+#   variant: riscv (RV32IMAC) | riscv-imc (RV32IMC, e.g. ESP32-C3 class) | riscv64 (RV64GC)
 setup_riscv_environment() {
     local board="$1"
+    local variant="${2:-riscv}"
 
-    log_debug "Setting up RISC-V environment for board: $board"
+    log_debug "Setting up RISC-V environment for board: $board (variant: $variant)"
 
-    # Export RISC-V-specific variables
-    export RISCV_TARGET="riscv32imac-unknown-none-elf"
-    export RISCV_FEATURES="riscv"
+    # Variant-specific toolchain triple
+    case "$variant" in
+        riscv-imc)
+            export RISCV_TARGET="riscv32imc-unknown-none-elf"
+            ;;
+        riscv64)
+            export RISCV_TARGET="riscv64gc-unknown-none-elf"
+            ;;
+        *)
+            export RISCV_TARGET="riscv32imac-unknown-none-elf"
+            ;;
+    esac
 
     # Board-specific configuration
     case "$board" in
-        qemu)
+        qemu|*)
             export RISCV_BOARD="virt"
             export RISCV_QEMU_MACHINE="virt"
             ;;
-        *)
-            export RISCV_BOARD="virt"  # default
-            export RISCV_QEMU_MACHINE="virt"
-            ;;
     esac
+
+    export RISCV_FEATURES="riscv"
+    export RISCV_VARIANT="$variant"
 
     log_debug "RISCV_TARGET=$RISCV_TARGET"
     log_debug "RISCV_FEATURES=$RISCV_FEATURES"
@@ -117,7 +147,7 @@ validate_architecture() {
 
     # Check if target is supported
     case "$target" in
-        arm|riscv)
+        arm|arm-v8m|riscv|riscv-imc|riscv64)
             log_debug "Architecture $target is supported"
             ;;
         *)

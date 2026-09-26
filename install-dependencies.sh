@@ -62,6 +62,25 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+qemu_installed() {
+    local commands=(qemu-system-arm qemu-system-riscv32)
+
+    case "$DISTRO" in
+        ubuntu|debian|linuxmint|pop|fedora|rhel|centos|rocky|almalinux|arch|manjaro|endeavouros)
+            commands+=(qemu-system-riscv64)
+            ;;
+    esac
+
+    local command
+    for command in "${commands[@]}"; do
+        if ! command_exists "$command"; then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
 # Install Rust toolchain (Optimized)
 install_rust() {
     log_info "Checking Rust installation..."
@@ -92,7 +111,7 @@ install_rust() {
 install_rust_targets() {
     log_info "Checking Rust targets..."
 
-    local targets=("thumbv7em-none-eabihf" "thumbv7em-none-eabi" "riscv32imac-unknown-none-elf" "riscv32imc-unknown-none-elf")
+    local targets=("thumbv7m-none-eabi" "thumbv8m.main-none-eabi" "riscv32imac-unknown-none-elf" "riscv32imc-unknown-none-elf" "riscv64gc-unknown-none-elf")
     local needs_install=false
 
     for target in "${targets[@]}"; do
@@ -122,11 +141,11 @@ install_qemu_linux() {
             log_info "Installing QEMU on Ubuntu/Debian..."
 
             # Check if already installed to avoid unnecessary updates
-            if ! command_exists qemu-system-arm || ! command_exists qemu-system-riscv32; then
+            if ! qemu_installed; then
                 log_info "Updating package list (this may take a moment)..."
                 sudo apt-get update
                 log_info "Installing QEMU packages..."
-                sudo apt-get install -y qemu-system-arm qemu-system-riscv32 qemu-system-misc
+                sudo apt-get install -y qemu-system-arm qemu-system-riscv32 qemu-system-riscv64 qemu-system-misc
             else
                 log_info "QEMU already installed, skipping package installation"
             fi
@@ -134,8 +153,8 @@ install_qemu_linux() {
         fedora|rhel|centos|rocky|almalinux)
             log_info "Installing QEMU on Fedora/RHEL..."
 
-            if ! command_exists qemu-system-arm || ! command_exists qemu-system-riscv32; then
-                sudo dnf install -y qemu-system-arm qemu-system-riscv32 qemu-system-misc
+            if ! qemu_installed; then
+                sudo dnf install -y qemu-system-arm qemu-system-riscv32 qemu-system-riscv64 qemu-system-misc
             else
                 log_info "QEMU already installed, skipping package installation"
             fi
@@ -143,8 +162,8 @@ install_qemu_linux() {
         arch|manjaro|endeavouros)
             log_info "Installing QEMU on Arch Linux..."
 
-            if ! command_exists qemu-system-arm || ! command_exists qemu-system-riscv32; then
-                sudo pacman -S --noconfirm qemu-system-arm qemu-system-riscv32
+            if ! qemu_installed; then
+                sudo pacman -S --noconfirm qemu-system-arm qemu-system-riscv32 qemu-system-riscv64
             else
                 log_info "QEMU already installed, skipping package installation"
             fi
@@ -152,7 +171,7 @@ install_qemu_linux() {
         opensuse*|sles)
             log_info "Installing QEMU on openSUSE..."
 
-            if ! command_exists qemu-system-arm || ! command_exists qemu-system-riscv32; then
+            if ! qemu_installed; then
                 sudo zypper install -y qemu-arm qemu-riscv32
             else
                 log_info "QEMU already installed, skipping package installation"
@@ -184,7 +203,7 @@ install_qemu_macos() {
 
 # Install QEMU
 install_qemu() {
-    if command_exists qemu-system-arm && command_exists qemu-system-riscv32; then
+    if qemu_installed; then
         log_info "QEMU is already installed"
         qemu-system-arm --version | head -1
         qemu-system-riscv32 --version | head -1
@@ -199,7 +218,7 @@ install_qemu() {
             return 1
         fi
 
-        if command_exists qemu-system-arm && command_exists qemu-system-riscv32; then
+        if qemu_installed; then
             log_success "QEMU installed successfully"
             qemu-system-arm --version | head -1
             qemu-system-riscv32 --version | head -1

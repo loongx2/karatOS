@@ -1,26 +1,6 @@
 # Rust build artifacts
-/target/
-Cargo.lock
+target/
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS files
+# OS generated files
 .DS_Store
 Thumbs.db
-
-# Debug files
-*.pdb
-
-# QEMU runtime files
-*.log
-
-# Build system cache and generated files
-.build_cache
-build/build.log
-kernel/memory.x
-kernel/target/

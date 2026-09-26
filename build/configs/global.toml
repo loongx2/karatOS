@@ -13,11 +13,32 @@ features = ["arm"]
 rustflags = ["-C", "linker=rust-lld", "-C", "link-arg=-Tmemory.x"]
 memory_template = "memory-arm.x"
 
+# ARMv8-M baseline (Cortex-M33, e.g. MPS3-AN547 / Musca-B1)
+[targets.arm-v8m]
+triple = "thumbv8m.main-none-eabi"
+features = ["arm"]
+rustflags = ["-C", "linker=rust-lld", "-C", "link-arg=-Tmemory.x"]
+memory_template = "memory-arm-v8m.x"
+
 [targets.riscv]
 triple = "riscv32imac-unknown-none-elf"
 features = ["riscv"]
 rustflags = ["-C", "linker=rust-lld", "-C", "link-arg=-Tmemory.x"]
 memory_template = "memory-riscv.x"
+
+# RISC-V RV32IMC variant (no atomics / no A ext - e.g. ESP32-C3 class cores)
+[targets.riscv-imc]
+triple = "riscv32imc-unknown-none-elf"
+features = ["riscv"]
+rustflags = ["-C", "linker=rust-lld", "-C", "link-arg=-Tmemory.x"]
+memory_template = "memory-riscv.x"
+
+# RISC-V RV64GC variant (e.g. SiFive U54 on qemu-system-riscv64 'virt')
+[targets.riscv64]
+triple = "riscv64gc-unknown-none-elf"
+features = ["riscv"]
+rustflags = ["-C", "linker=rust-lld", "-C", "link-arg=-Tmemory.x"]
+memory_template = "memory-riscv64.x"
 
 [boards.arm_lm3s6965]
 name = "LM3S6965EVB"
@@ -25,9 +46,39 @@ arch = "arm"
 qemu_machine = "lm3s6965evb"
 memory = { flash_start = "0x00000000", flash_size = "0x00040000", ram_start = "0x20000000", ram_size = "0x00010000" }
 
+# ARM Cortex-M33 (TrustZone-M baseline) - MPS3-AN547 board model in QEMU.
+# This is the latest ARM Cortex core family we target (M55 ships as AN547 image;
+# M33 cores on the same machine accept thumbv8m.main code).
+[boards.arm_mps3_an547]
+name = "MPS3-AN547 (Cortex-M55/M33)"
+arch = "arm-v8m"
+qemu_machine = "mps3-an547"
+memory = { flash_start = "0x10000000", flash_size = "0x00200000", ram_start = "0x20000000", ram_size = "0x00200000" }
+
+# ARM Cortex-M33 - Musca-B1 test chip (older but stable v8-M mainline model)
+[boards.arm_musca_b1]
+name = "Musca-B1 (Cortex-M33)"
+arch = "arm-v8m"
+qemu_machine = "musca-b1"
+memory = { flash_start = "0x00000000", flash_size = "0x00100000", ram_start = "0x20000000", ram_size = "0x00100000" }
+
 [boards.riscv_qemu]
 name = "QEMU virt"
 arch = "riscv"
+qemu_machine = "virt"
+memory = { ram_start = "0x80000000", ram_size = "0x08000000" }
+
+# RISC-V RV32IMC variant (e.g. ESP32-C3 / FE310-class cores without A extension)
+[boards.riscv_qemu_imc]
+name = "QEMU virt (RV32IMC)"
+arch = "riscv-imc"
+qemu_machine = "virt"
+memory = { ram_start = "0x80000000", ram_size = "0x08000000" }
+
+# RISC-V RV64GC variant (SiFive U54-class, qemu-system-riscv64 'virt')
+[boards.riscv_qemu_64]
+name = "QEMU virt (RV64GC)"
+arch = "riscv64"
 qemu_machine = "virt"
 memory = { ram_start = "0x80000000", ram_size = "0x08000000" }
 
@@ -35,6 +86,59 @@ memory = { ram_start = "0x80000000", ram_size = "0x08000000" }
 command = "qemu-system-arm"
 args = ["-M", "lm3s6965evb", "-nographic", "-semihosting-config", "enable=on,target=native", "-serial", "mon:stdio"]
 
+[qemu.arm_mps3_an547]
+command = "qemu-system-arm"
+args = ["-M", "mps3-an547", "-nographic", "-kernel", "KERNEL_ELF", "-serial", "mon:stdio"]
+
+[qemu.arm_musca_b1]
+command = "qemu-system-arm"
+args = ["-M", "musca-b1", "-nographic", "-kernel", "KERNEL_ELF", "-serial", "mon:stdio"]
+
 [qemu.riscv_qemu]
 command = "qemu-system-riscv32"
 args = ["-machine", "virt", "-cpu", "rv32", "-smp", "1", "-m", "128M", "-nographic", "-bios", "none", "-serial", "mon:stdio"]
+
+[qemu.riscv_qemu_imc]
+command = "qemu-system-riscv32"
+args = ["-machine", "virt", "-cpu", "rv32", "-smp", "1", "-m", "128M", "-nographic", "-bios", "none", "-serial", "mon:stdio"]
+
+[qemu.riscv_qemu_64]
+command = "qemu-system-riscv64"
+args = ["-machine", "virt", "-cpu", "rv64", "-smp", "1", "-m", "128M", "-nographic", "-bios", "none", "-serial", "mon:stdio"]
+
+# ---------------------------------------------------------------------------
+# Milestone 3 - Memory footprint gate (64 kB ROM / 64 kB SRAM contract)
+# Enforced by build/modules/size.sh after every release build and in CI.
+#   max_rom_bytes = .text + .rodata + .vector_table + .data load image
+#   max_ram_bytes = .data + .bss + .heap + .stack
+# warn_threshold_pct triggers a WARN (non-fatal) before the hard FAIL.
+# ---------------------------------------------------------------------------
+[memory_budget]
+warn_threshold_pct = 90
+
+[memory_budget.default]
+max_rom_bytes = 65536
+max_ram_bytes = 65536
+
+# Cortex-M3 / LM3S6965: 256K flash, but SRAM is exactly 64K -> RAM is the
+# binding constraint; keep both at the 64 KiB contract for portability.
+[memory_budget.arm]
+max_rom_bytes = 65536
+max_ram_bytes = 65536
+
+# Cortex-M33/M55 (MPS3-AN547 / Musca-B1): same portable 64 KiB contract
+[memory_budget.arm-v8m]
+max_rom_bytes = 65536
+max_ram_bytes = 65536
+
+[memory_budget.riscv]
+max_rom_bytes = 65536
+max_ram_bytes = 65536
+
+[memory_budget.riscv-imc]
+max_rom_bytes = 65536
+max_ram_bytes = 65536
+
+[memory_budget.riscv64]
+max_rom_bytes = 65536
+max_ram_bytes = 65536

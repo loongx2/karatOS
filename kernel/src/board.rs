@@ -10,7 +10,7 @@ pub fn init_board() {
     #[cfg(all(target_arch = "arm", feature = "board_lm3s6965evb"))]
     init_lm3s6965evb();
     
-    #[cfg(all(target_arch = "riscv32", feature = "board_qemu_virt"))]
+    #[cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), feature = "board_qemu_virt"))]
     init_qemu_virt_riscv();
     
     // Default board initialization if no specific board is configured
@@ -25,7 +25,7 @@ pub fn get_board_config() -> BoardConfig {
         get_lm3s6965evb_config()
     }
     
-    #[cfg(all(target_arch = "riscv32", feature = "board_qemu_virt"))]
+    #[cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), feature = "board_qemu_virt"))]
     {
         get_qemu_virt_riscv_config()
     }
@@ -62,7 +62,7 @@ fn get_lm3s6965evb_config() -> BoardConfig {
 }
 
 /// QEMU RISC-V virt board configuration
-#[cfg(all(target_arch = "riscv32", feature = "board_qemu_virt"))]
+#[cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), feature = "board_qemu_virt"))]
 fn init_qemu_virt_riscv() {
     // Initialize QEMU RISC-V virt board specific features
     // - PLIC configuration
@@ -70,7 +70,7 @@ fn init_qemu_virt_riscv() {
     // - Platform-specific setup
 }
 
-#[cfg(all(target_arch = "riscv32", feature = "board_qemu_virt"))]
+#[cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), feature = "board_qemu_virt"))]
 fn get_qemu_virt_riscv_config() -> BoardConfig {
     BoardConfig {
         board_name: "QEMU RISC-V virt",
@@ -106,7 +106,7 @@ fn get_default_board_config() -> BoardConfig {
         }
     }
     
-    #[cfg(target_arch = "riscv32")]
+    #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
     {
         BoardConfig {
             board_name: "Generic RISC-V Board",
@@ -121,7 +121,7 @@ fn get_default_board_config() -> BoardConfig {
         }
     }
     
-    #[cfg(not(any(target_arch = "arm", target_arch = "riscv32")))]
+    #[cfg(not(any(target_arch = "arm", any(target_arch = "riscv32", target_arch = "riscv64"))))]
     {
         // Default configuration for host testing
         BoardConfig {

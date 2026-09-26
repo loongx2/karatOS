@@ -11,6 +11,7 @@ source "build/modules/core.sh"
 source "build/modules/arch.sh"
 source "build/modules/qemu.sh"
 source "build/modules/config.sh"
+source "build/modules/size.sh"
 
 # Default values
 TARGET="${TARGET:-all}"
@@ -25,7 +26,7 @@ VERBOSE="${VERBOSE:-false}"
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case $1 in
-            arm|riscv|all)
+            arm|arm-v8m|riscv|riscv-imc|riscv64|all)
                 TARGET="$1"
                 shift
                 ;;
@@ -88,9 +89,12 @@ USAGE:
     $0 [TARGET] [BUILD_TYPE] [OPTIONS]
 
 TARGETS:
-    arm         Build ARM Cortex-M target
-    riscv       Build RISC-V target
-    all         Build both targets
+    arm         Build ARM Cortex-M3/M4/M7 target (thumbv7m)
+    arm-v8m     Build ARM v8-M target (Cortex-M33/M55, thumbv8m.main)
+    riscv       Build RISC-V RV32IMAC target
+    riscv-imc   Build RISC-V RV32IMC target (no atomics, e.g. ESP32-C3 class)
+    riscv64     Build RISC-V RV64GC target (e.g. SiFive U54)
+    all         Build primary ARM + RISC-V targets
 
 BUILD_TYPES:
     debug       Debug build (default)
@@ -115,6 +119,10 @@ EXAMPLES:
     $0 --clean all           # Clean and build all
     $0 all --test --timeout 60  # Build all with 60s test timeout
     $0 riscv --interactive --interactive-timeout 600  # 10min interactive session
+    $0 riscv-imc release     # Build RV32IMC variant (no A extension)
+    $0 riscv64 release       # Build RV64GC variant (SiFive U54-class)
+    $0 arm-v8m --board mps3-an547 --test  # Cortex-M55/M33 on MPS3-AN547
+    $0 arm-v8m --board musca-b1           # Cortex-M33 on Musca-B1
 
 CONFIGURATION:
     Configuration files are located in build/configs/
@@ -155,6 +163,13 @@ build_target() {
     # Validate build output
     validate_build_output "$target" "$build_type"
 
+    # Enforce the 64 kB ROM/SRAM footprint gate (Milestone 3).
+    # Debug builds are informational only; release builds hard-fail on breach.
+    report_footprint "$target" "$build_type"
+    if [[ "$build_type" == "release" ]]; then
+        check_size_budget "$target" "$build_type" || error "Footprint gate failed for $target"
+    fi
+
     # Save build configuration
     save_build_config "$target" "$build_type" "$board"
 
@@ -191,7 +206,7 @@ execute_build() {
     fi
 
     case "$TARGET" in
-        arm|riscv)
+        arm|arm-v8m|riscv|riscv-imc|riscv64)
             build_target "$TARGET" "$BUILD_TYPE" "$BOARD"
 
             if [[ "$TEST_MODE" == true || "$INTERACTIVE_MODE" == true ]]; then
@@ -205,10 +220,10 @@ execute_build() {
         all)
             log_info "Building all targets"
 
-            # Build ARM
+            # Build ARM (Cortex-M3 baseline)
             build_target "arm" "$BUILD_TYPE" "$BOARD"
 
-            # Build RISC-V
+            # Build RISC-V (RV32IMAC)
             build_target "riscv" "$BUILD_TYPE" ""
 
             if [[ "$TEST_MODE" == true || "$INTERACTIVE_MODE" == true ]]; then

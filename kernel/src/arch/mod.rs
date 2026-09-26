@@ -10,7 +10,7 @@ static INTERRUPTS_ENABLED: AtomicBool = AtomicBool::new(true);
 #[cfg(any(feature = "arm", target_arch = "arm"))]
 pub mod arm;
 
-#[cfg(any(feature = "riscv", target_arch = "riscv32"))]
+#[cfg(any(feature = "riscv", any(target_arch = "riscv32", target_arch = "riscv64")))]
 pub mod riscv;
 
 /// Memory layout trait for architecture-specific configurations

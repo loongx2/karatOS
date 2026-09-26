@@ -1,7 +1,7 @@
 //! riscv-rt runtime configuration hooks and symbols
 //! Provides required symbols to satisfy riscv-rt link and boot expectations.
 
-#![cfg(target_arch = "riscv32")]
+#![cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 
 // riscv-rt expects these weak symbols; we provide simple defaults for single-hart bring-up.
 
