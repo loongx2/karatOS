@@ -75,7 +75,7 @@ jobs:
         build_type: [release]
         
     container:
-      image: rust:1.75-slim
+      image: rust:1.98-slim
       
     steps:
       - name: Checkout code
