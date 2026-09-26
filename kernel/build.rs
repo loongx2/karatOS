@@ -30,7 +30,8 @@ fn resolve_memory_template(target: &str) -> PathBuf {
         "lm3s6965" | "cortex-m3" => "memory-arm.x",
         "virt-rv32imc" => "memory-riscv-imc.x",
         "virt-rv64gc" => "memory-riscv64.x",
-        "virt-rv32imac" | "" => {
+        "virt-rv32imac" => "memory-riscv.x",
+        "" => {
             if target.starts_with("riscv64") {
                 "memory-riscv64.x"
             } else if target.starts_with("riscv32imc-") {

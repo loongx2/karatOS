@@ -66,7 +66,7 @@ qemu_installed() {
     local commands=(qemu-system-arm qemu-system-riscv32)
 
     case "$DISTRO" in
-        ubuntu|debian|linuxmint|pop|fedora|rhel|centos|rocky|almalinux)
+        ubuntu|debian|linuxmint|pop|fedora|rhel|centos|rocky|almalinux|arch|manjaro|endeavouros)
             commands+=(qemu-system-riscv64)
             ;;
     esac
@@ -163,7 +163,7 @@ install_qemu_linux() {
             log_info "Installing QEMU on Arch Linux..."
 
             if ! qemu_installed; then
-                sudo pacman -S --noconfirm qemu-system-arm qemu-system-riscv32
+                sudo pacman -S --noconfirm qemu-system-arm qemu-system-riscv32 qemu-system-riscv64
             else
                 log_info "QEMU already installed, skipping package installation"
             fi
