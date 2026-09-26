@@ -33,7 +33,7 @@ fn resolve_memory_template(target: &str) -> PathBuf {
         "virt-rv32imac" | "" => {
             if target.starts_with("riscv64") {
                 "memory-riscv64.x"
-            } else if target.starts_with("riscv32imc") {
+            } else if target.starts_with("riscv32imc-") {
                 "memory-riscv-imc.x"
             } else if target.starts_with("riscv") {
                 "memory-riscv.x"
