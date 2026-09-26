@@ -92,7 +92,7 @@ install_rust() {
 install_rust_targets() {
     log_info "Checking Rust targets..."
 
-    local targets=("thumbv7em-none-eabihf" "thumbv7em-none-eabi" "riscv32imac-unknown-none-elf" "riscv32imc-unknown-none-elf")
+    local targets=("thumbv7m-none-eabi" "thumbv8m.main-none-eabi" "riscv32imac-unknown-none-elf" "riscv32imc-unknown-none-elf" "riscv64gc-unknown-none-elf")
     local needs_install=false
 
     for target in "${targets[@]}"; do
@@ -126,7 +126,7 @@ install_qemu_linux() {
                 log_info "Updating package list (this may take a moment)..."
                 sudo apt-get update
                 log_info "Installing QEMU packages..."
-                sudo apt-get install -y qemu-system-arm qemu-system-riscv32 qemu-system-misc
+                sudo apt-get install -y qemu-system-arm qemu-system-riscv32 qemu-system-riscv64 qemu-system-misc
             else
                 log_info "QEMU already installed, skipping package installation"
             fi
@@ -135,7 +135,7 @@ install_qemu_linux() {
             log_info "Installing QEMU on Fedora/RHEL..."
 
             if ! command_exists qemu-system-arm || ! command_exists qemu-system-riscv32; then
-                sudo dnf install -y qemu-system-arm qemu-system-riscv32 qemu-system-misc
+                sudo dnf install -y qemu-system-arm qemu-system-riscv32 qemu-system-riscv64 qemu-system-misc
             else
                 log_info "QEMU already installed, skipping package installation"
             fi

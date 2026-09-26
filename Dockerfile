@@ -7,9 +7,12 @@ LABEL maintainer="karatOS Contributors"
 LABEL description="karatOS Multi-Architecture Build Environment"
 
 # Install system dependencies
+# qemu-system-misc provides qemu-system-riscv64 and the newer ARM machine
+# models (mps3-an547 / Cortex-M55, musca-b1 / Cortex-M33) in Debian QEMU >= 8.x
 RUN apt-get update && apt-get install -y \
     qemu-system-arm \
     qemu-system-riscv32 \
+    qemu-system-riscv64 \
     qemu-system-misc \
     build-essential \
     git \
@@ -19,7 +22,17 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust targets
-RUN rustup target add thumbv7m-none-eabi riscv32imac-unknown-none-elf
+#   thumbv7m-none-eabi     : ARM Cortex-M3/M4/M7
+#   thumbv8m.main-none-eabi: ARM Cortex-M33/M55 (latest ARM core - MPS3-AN547)
+#   riscv32imac            : RISC-V RV32IMAC (QEMU virt rv32)
+#   riscv32imc             : RISC-V RV32IMC (ESP32-C3 class, no A ext)
+#   riscv64gc              : RISC-V RV64GC (SiFive U54 class)
+RUN rustup target add \
+    thumbv7m-none-eabi \
+    thumbv8m.main-none-eabi \
+    riscv32imac-unknown-none-elf \
+    riscv32imc-unknown-none-elf \
+    riscv64gc-unknown-none-elf
 
 # Install Python dependencies for CI orchestration
 RUN pip3 install --no-cache-dir \

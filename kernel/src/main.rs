@@ -15,10 +15,10 @@ use cortex_m_rt::entry;
 use cortex_m_semihosting::hprintln;
 
 // RISC-V specific imports and panic handler
-#[cfg(target_arch = "riscv32")]
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 use panic_halt as _;
 
-#[cfg(target_arch = "riscv32")]
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 #[allow(unused_imports)]
 use riscv_rt::entry;
 
@@ -28,7 +28,7 @@ mod config;
 mod drivers;
 mod kernel;
 mod memory;
-#[cfg(target_arch = "riscv32")]
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 mod riscv_rt_config;
 
 // Import scheduler for task management
@@ -392,7 +392,7 @@ pub fn kernel_main() -> ! {
 // Architecture-specific entry points
 
 /// RISC-V specific entry point
-#[cfg(target_arch = "riscv32")]
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 #[riscv_rt::entry]
 fn main() -> ! {
     arch::early_println("RISC-V entry point reached");

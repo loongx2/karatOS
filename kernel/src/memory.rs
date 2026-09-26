@@ -14,7 +14,7 @@ pub fn get_memory_regions() -> MemoryRegions {
         }
     }
     
-    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
+    #[cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), target_os = "none"))]
     {
         MemoryRegions {
             ram_start: 0x80000000,
@@ -26,7 +26,7 @@ pub fn get_memory_regions() -> MemoryRegions {
     
     #[cfg(not(any(
         all(target_arch = "arm", target_os = "none"),
-        all(target_arch = "riscv32", target_os = "none")
+        all(any(target_arch = "riscv32", target_arch = "riscv64"), target_os = "none")
     )))]
     {
         MemoryRegions {

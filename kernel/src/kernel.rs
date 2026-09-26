@@ -30,7 +30,7 @@ pub fn run() -> ! {
         #[cfg(target_arch = "arm")]
         unsafe { core::arch::asm!("wfi") };
         
-        #[cfg(target_arch = "riscv32")]
+        #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
         unsafe { core::arch::asm!("wfi") };
     }
 }
