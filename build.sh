@@ -133,6 +133,71 @@ EOF
 }
 
 # Main build function
+# ---------------------------------------------------------------------------
+# Phase 3: loadable module image build (modules/hello -> raw .bin)
+# Builds the module for the SAME target triple, extracts the raw image at
+# its slot address, patches size+CRC (ci/elf_to_bin.py), and exports
+# KARATOS_MODULE_BIN for the kernel's build script to embed.
+# ---------------------------------------------------------------------------
+build_module_image() {
+    local target="$1"
+    unset KARATOS_MODULE_BIN
+
+    command -v python3 >/dev/null 2>&1 || { warning "python3 not found - skipping module image"; return 0; }
+
+    local triple
+    triple=$(get_target_triple "$target") || return 0
+    local build_type="release"
+
+    # Per-target KAPI/slot geography (must match karatos-kapi + linker
+    # templates so the module binds to the kernel export table).
+    case "$target" in
+        arm)     export KARATOS_KAPI_ADDR=0x0001F000; export KARATOS_MODULE_SLOT=0x20004000 ;;
+        arm-v8m) export KARATOS_KAPI_ADDR=0x1001F000; export KARATOS_MODULE_SLOT=0x30004000 ;;
+        *)       export KARATOS_KAPI_ADDR=0x80010000; export KARATOS_MODULE_SLOT=0x80008000 ;;
+    esac
+
+    log_info "Building loadable module image (hello) for $triple"
+    if ! (cd "$BUILD_SYSTEM_DIR/modules/hello" && cargo build --release --target "$triple" --bin hello 2>>"$BUILD_SYSTEM_DIR/build.log"); then
+        warning "module build failed - kernel will build WITHOUT embedded module"
+        return 0
+    fi
+
+    local elf="$BUILD_SYSTEM_DIR/target/$triple/$build_type/hello"
+    local bin="$BUILD_SYSTEM_DIR/modules/hello/hello-$triple.bin"
+    if python3 "$BUILD_SYSTEM_DIR/ci/elf_to_bin.py" "$elf" "$bin" >>"$BUILD_SYSTEM_DIR/build.log" 2>&1; then
+        export KARATOS_MODULE_BIN="$bin"
+        log_success "Module image ready: $bin"
+    else
+        warning "module post-processing failed - kernel will build WITHOUT embedded module"
+        return 0
+    fi
+
+    # Phase 4: pack the module image(s) into the flash STORE image and export
+    # its base address for the QEMU loader device (models bootloader provisioning).
+    local board_id
+    case "$target" in
+        arm)      board_id=1 ;;
+        arm-v8m)  board_id=5 ;;
+        riscv-imc) board_id=3 ;;
+        riscv64)  board_id=4 ;;
+        *)        board_id=2 ;;
+    esac
+    local store="$BUILD_SYSTEM_DIR/store-$triple.bin"
+    if python3 "$BUILD_SYSTEM_DIR/ci/build_store.py" --board-id "$board_id" -o "$store" "$bin" >>"$BUILD_SYSTEM_DIR/build.log" 2>&1; then
+        export KARATOS_STORE_BIN="$store"
+        case "$target" in
+            arm)     export KARATOS_STORE_BASE=0x00022000 ;;
+            arm-v8m) export KARATOS_STORE_BASE=0x10021000 ;;
+          *) export KARATOS_STORE_BASE=0x83000000 ;;
+        esac
+        log_success "Flash store ready: $store @ $KARATOS_STORE_BASE"
+    else
+        warning "store build failed - kernel will run without provisioned modules"
+    fi
+    return 0
+}
+
 build_target() {
     local target="$1"
     local build_type="$2"
@@ -156,6 +221,11 @@ build_target() {
 
     # Generate memory layout
     generate_memory_layout "$target" "$board"
+
+    # Phase 3: build the loadable module image FIRST so the kernel can embed
+    # it (kernel/build.rs picks up KARATOS_MODULE_BIN; on any failure the
+    # kernel still builds without the module demo).
+    build_module_image "$target" || true
 
     # Execute cargo build
     execute_cargo_build "$target" "$build_type"

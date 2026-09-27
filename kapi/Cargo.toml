@@ -1,0 +1,12 @@
+[package]
+name = "karatos-kapi"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["karatOS Contributors"]
+description = "karatOS kernel<->module stable ABI: descriptors, KAPI table, fixed addresses"
+repository = "https://github.com/loongx2/karatOS"
+keywords = ["rtos", "embedded", "no-std"]
+categories = ["embedded", "os", "no-std"]
+
+[dependencies]

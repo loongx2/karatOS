@@ -15,3 +15,23 @@ rustflags = [
   "-C", "link-arg=%OUT_DIR%",
   "-C", "link-arg=--nmagic",
 ]
+
+# RV32IMC (no atomics, e.g. ESP32-C3 class) — same linking contract
+[target.riscv32imc-unknown-none-elf]
+rustflags = [
+  "-C", "linker=rust-lld",
+  "-C", "link-arg=-Tmemory.x",
+  "-C", "link-arg=-L",
+  "-C", "link-arg=%OUT_DIR%",
+  "-C", "link-arg=--nmagic",
+]
+
+# RV64GC (e.g. SiFive U54 class) — same linking contract
+[target.riscv64gc-unknown-none-elf]
+rustflags = [
+  "-C", "linker=rust-lld",
+  "-C", "link-arg=-Tmemory.x",
+  "-C", "link-arg=-L",
+  "-C", "link-arg=%OUT_DIR%",
+  "-C", "link-arg=--nmagic",
+]

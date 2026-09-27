@@ -49,6 +49,30 @@ fn resolve_memory_template(target: &str) -> PathBuf {
 }
 
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(armv8m_target)");
+    println!("cargo:rustc-check-cfg=cfg(karatos_module_image)");
+    println!("cargo:rustc-check-cfg=cfg(riscv64_target)");
+    println!("cargo:rustc-check-cfg=cfg(imc_target)");
+    println!("cargo:rustc-check-cfg=cfg(riscv_target)");
+    println!("cargo:rustc-check-cfg=cfg(arm_target)");
+    println!("cargo:rustc-check-cfg=cfg(host_target)");
+    // The module image env toggles the cfg below — cargo must re-run this
+    // script (and recompile the demo) when it appears/disappears.
+    println!("cargo:rerun-if-env-changed=KARATOS_MODULE_BIN");
+
+    // Phase 3: embed the loadable module image when the build system built
+    // one (build.sh exports KARATOS_MODULE_BIN). Without it the kernel is a
+    // plain static kernel (module demo compiled out).
+    if let Ok(path) = env::var("KARATOS_MODULE_BIN") {
+        let p = PathBuf::from(&path);
+        if p.exists() {
+            println!("cargo:warning=karatOS: embedding module image {}", p.display());
+            println!("cargo:rustc-cfg=karatos_module_image");
+            println!("cargo:rustc-env=KARATOS_MODULE_BIN={}", p.display());
+            println!("cargo:rerun-if-changed={}", p.display());
+        }
+    }
+
     let target = env::var("TARGET").unwrap();
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
 
@@ -78,6 +102,9 @@ fn configure_riscv_build(out: &PathBuf, target: &str) {
     println!("cargo:rustc-cfg=riscv_target");
     if target.starts_with("riscv64") {
         println!("cargo:rustc-cfg=riscv64_target");
+    }
+    if target.starts_with("riscv32imc") {
+        println!("cargo:rustc-cfg=imc_target");
     }
 
     let template_path = resolve_memory_template(target);

@@ -25,6 +25,12 @@ SECTIONS
         _etext = .;
     } > FLASH
 
+  /* KAPI export table at a FIXED address (karatos-kapi::KAPI_ADDR_ARMV8M). */
+  .kapi 0x1001F000 :
+  {
+    KEEP(*(.kapi .kapi.*));
+  } > FLASH
+
     .data : ALIGN(4)
     {
         _sdata = .;

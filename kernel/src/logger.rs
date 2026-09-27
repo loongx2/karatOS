@@ -1,3 +1,28 @@
+//! ============================================================================
+//! MODULE : logger — in-memory circular log (crash forensics primitive)
+//! ----------------------------------------------------------------------------
+//! PURPOSE
+//!   Keeps the last MAX_LOG_LINES log lines in static RAM with rollover, so
+//!   a fatal path can dump recent history even when the console is gone or
+//!   was never wired (Phase 5 fault capture will read this buffer out).
+//!
+//! ROLE IN BOOT FLOW
+//!   Available from kernel::init() onward; today the boot banner logs through
+//!   `log_debug!`. Never allocates: heapless::String/Vec only.
+//!
+//! MEMORY BUDGET
+//!   100 lines x 64 bytes ≈ 6.4 KB .bss — the single largest RAM consumer
+//!   in the kernel. Halve MAX_LOG_LINES first if a target gets tight.
+//!
+//! OOP MODEL
+//!   `Logger` is a name-spaced state machine (no instances); the
+//!   `log_debug!` / `log_visible!` macros are the ergonomic surface.
+//!
+//! NOTE: this whole module is Phase-5 fault-capture surface; until the fatal
+//! path dumps the buffer, its API is intentionally dead — silenced below.
+//! ============================================================================
+#![allow(dead_code)]
+
 // Circular log buffer for capturing system debug output
 // Stores up to 100 log lines in static memory with rollover (reduced for memory constraints)
 
@@ -124,9 +149,10 @@ macro_rules! log_visible {
             use core::fmt::Write;
             let _ = write!(msg, $($arg)*);
             crate::logger::Logger::log(msg.as_str());
-            
-            // And print to terminal
-            crate::arch::arch_println(&msg);
+
+            // And print to console (arch early path; no trailing newline here
+            // because the message usually carries its own).
+            crate::arch::early_println(msg.as_str());
         }
     };
 }

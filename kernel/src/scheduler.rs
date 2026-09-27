@@ -1,3 +1,33 @@
+//! ============================================================================
+//! MODULE : scheduler — cooperative multi-priority executor (kernel heart)
+//! ----------------------------------------------------------------------------
+//! PURPOSE
+//!   Runs tasks across four static priority levels (Critical > High > Normal
+//!   > Low) with lock-free event queues and a real time base.
+//!
+//! EXECUTION MODEL (read this before touching anything)
+//!   * COOPERATIVE ONLY. There is NO context switch: a "task" is a fn() run
+//!     to completion by the demo loop in main.rs; "preemption" means a
+//!     higher-priority queue is drained first on the next cycle.
+//!   * The 1 kHz arch tick (SysTick/CLINT) only bumps a latch — see
+//!     arch::tick_isr. The main loop drains it via arch::advance_time() and
+//!     feeds update_global_timer(). The ISR therefore NEVER enters this
+//!     module, which is what makes the `&mut` globals below sound.
+//!   * with_scheduler/with_multi_scheduler wrap every access in an
+//!     interrupt-disabled critical section (single-core assumption).
+//!
+//! MEMORY BUDGET
+//!   MultiPriorityExecutor = 4 x AsyncScheduler; each holds MAX_TASKS tasks
+//!   + 4 event queues of MAX_EVENTS_PER_PRIORITY Events — all static .bss,
+//!   zero heap. (<4 KB RAM as advertised in the README.)
+//!
+//! OOP MODEL
+//!   `AsyncScheduler` — one priority queue set + state machine.
+//!   `MultiPriorityExecutor` — composite of four, strict priority ordering.
+//!   `LockFreeEventQueue<N>` — SPSC ring buffer (ISR-posted events).
+//!   Host unit tests live at the bottom (cargo test --lib).
+//! ============================================================================
+
 //! Enhanced async event scheduler with modern Rust patterns
 //! Optimized for embedded RTOS with priority-based preemption
 //! 
@@ -16,7 +46,7 @@
 //! - Multiple executor instances for priority-based preemption
 
 use core::cell::UnsafeCell;
-use core::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use core::mem::MaybeUninit;
 
 // Maximum number of concurrent tasks and events
@@ -71,39 +101,6 @@ pub enum TaskPriority {
     High = 1,      // Time-sensitive operations
     Normal = 2,    // Regular application tasks
     Low = 3,       // Background maintenance
-}
-
-/// Enhanced task representation with Future integration
-#[allow(dead_code)]
-pub struct AsyncTask {
-    pub id: usize,
-    pub priority: TaskPriority,
-    pub state: TaskState,
-    pub waiting_event: Option<u32>,
-    pub wake_count: AtomicU32,
-}
-
-impl AsyncTask {
-    #[allow(dead_code)]
-    pub const fn new(id: usize, priority: TaskPriority) -> Self {
-        Self {
-            id,
-            priority,
-            state: TaskState::Ready,
-            waiting_event: None,
-            wake_count: AtomicU32::new(0),
-        }
-    }
-    
-    #[allow(dead_code)]
-    pub fn is_ready(&self) -> bool {
-        matches!(self.state, TaskState::Ready)
-    }
-    
-    #[allow(dead_code)]
-    pub fn wake(&self) {
-        self.wake_count.fetch_add(1, Ordering::Relaxed);
-    }
 }
 
 /// Lock-free ring buffer implementation (Embassy-inspired)
@@ -277,6 +274,37 @@ impl MultiPriorityExecutor {
             _ => TaskPriority::Low,
         }
     }
+
+    /// Total live tasks across all four priority schedulers.
+    pub fn active_task_count(&self) -> u32 {
+        self.critical_scheduler.active_tasks
+            + self.high_scheduler.active_tasks
+            + self.normal_scheduler.active_tasks
+            + self.low_scheduler.active_tasks
+    }
+
+    /// Total events ever posted across all four priority queues.
+    pub fn total_events(&self) -> u32 {
+        self.critical_scheduler.event_counter
+            + self.high_scheduler.event_counter
+            + self.normal_scheduler.event_counter
+            + self.low_scheduler.event_counter
+    }
+
+    /// Current scheduler time base (last value fed via update_timer).
+    /// All four sub-schedulers receive the same time, so any one works.
+    pub fn timer_value(&self) -> u32 {
+        self.critical_scheduler.timer_base.load(Ordering::Relaxed)
+    }
+
+    /// Feed the new time to every sub-scheduler (updates their sleep/wake
+    /// deadlines and timer_base) and wake tasks whose deadline passed.
+    pub fn update_timer(&mut self, current_time: u32) {
+        self.critical_scheduler.update_timer(current_time);
+        self.high_scheduler.update_timer(current_time);
+        self.normal_scheduler.update_timer(current_time);
+        self.low_scheduler.update_timer(current_time);
+    }
 }
 
 /// Enhanced Priority-based Async Event-Driven Scheduler
@@ -293,9 +321,17 @@ pub struct AsyncScheduler {
     low_events: LockFreeEventQueue<MAX_EVENTS_PER_PRIORITY>,
     
     // Scheduling state
-    needs_reschedule: AtomicBool,
-    active_tasks: AtomicU32,
-    event_counter: AtomicU32,
+    //
+    // PORTABILITY NOTE (riscv32imc has no RMW atomics):
+    //   * `needs_reschedule` / `active_tasks` / `event_counter` are plain
+    //     types — every mutation happens through `&mut self` inside the
+    //     interrupt-disabled critical sections of with_scheduler /
+    //     with_multi_scheduler, so no RMW instruction is required.
+    //   * `timer_base` and the queue head/tail indices only use load/store,
+    //     which every supported target provides natively.
+    needs_reschedule: bool,
+    active_tasks: u32,
+    event_counter: u32,
     timer_base: AtomicU32, // For sleep/timeout functionality (32-bit for embedded compatibility)
 }
 
@@ -310,9 +346,9 @@ impl AsyncScheduler {
             high_events: LockFreeEventQueue::new(),
             normal_events: LockFreeEventQueue::new(),
             low_events: LockFreeEventQueue::new(),
-            needs_reschedule: AtomicBool::new(false),
-            active_tasks: AtomicU32::new(0),
-            event_counter: AtomicU32::new(0),
+            needs_reschedule: false,
+            active_tasks: 0,
+            event_counter: 0,
             timer_base: AtomicU32::new(0),
         }
     }
@@ -322,8 +358,8 @@ impl AsyncScheduler {
         for (i, slot) in self.tasks.iter_mut().enumerate() {
             if slot.is_none() {
                 *slot = Some(task);
-                self.active_tasks.fetch_add(1, Ordering::Relaxed);
-                self.needs_reschedule.store(true, Ordering::Release);
+                self.active_tasks += 1;
+                self.needs_reschedule = true;
                 return Ok(i);
             }
         }
@@ -340,7 +376,7 @@ impl AsyncScheduler {
         };
         
         if result.is_ok() {
-            self.event_counter.fetch_add(1, Ordering::Relaxed);
+            self.event_counter += 1;
             self.wake_waiting_tasks(event.id);
             true
         } else {
@@ -362,7 +398,7 @@ impl AsyncScheduler {
                         // Message-passing optimization: put in hot slot
                         displaced_task_id = self.next_task.replace(i);
                         
-                        self.needs_reschedule.store(true, Ordering::Release);
+                        self.needs_reschedule = true;
                         break; // Only wake first matching task for fairness
                     }
                 }
@@ -429,7 +465,7 @@ impl AsyncScheduler {
                 task.waiting_event = Some(event_id);
             }
             self.current_task = None;
-            self.needs_reschedule.store(true, Ordering::Release);
+            self.needs_reschedule = true;
         }
     }
     
@@ -442,7 +478,7 @@ impl AsyncScheduler {
                 task.state = TaskState::Sleeping(wake_time as u64);
             }
             self.current_task = None;
-            self.needs_reschedule.store(true, Ordering::Release);
+            self.needs_reschedule = true;
         }
     }
     
@@ -455,7 +491,7 @@ impl AsyncScheduler {
                 if let TaskState::Sleeping(wake_time) = task.state {
                     if (current_time as u64) >= wake_time {
                         task.state = TaskState::Ready;
-                        self.needs_reschedule.store(true, Ordering::Release);
+                        self.needs_reschedule = true;
                     }
                 }
             }
@@ -497,7 +533,7 @@ impl AsyncScheduler {
             }
         }
         
-        if self.needs_reschedule.swap(false, Ordering::AcqRel) || self.current_task.is_none() {
+        if core::mem::replace(&mut self.needs_reschedule, false) || self.current_task.is_none() {
             // Mark current task as ready if it's still running
             if let Some(current_id) = self.current_task {
                 if let Some(task) = self.tasks[current_id].as_mut() {
@@ -533,10 +569,11 @@ impl AsyncScheduler {
     
     /// Check if scheduler has any active tasks
     pub fn has_active_tasks(&self) -> bool {
-        self.active_tasks.load(Ordering::Relaxed) > 0
+        self.active_tasks > 0
     }
     
     /// Check if scheduler has ready tasks
+    #[allow(dead_code)] // introspection API; MultiPriorityExecutor::has_ready_tasks is used
     pub fn has_ready_tasks(&self) -> bool {
         self.tasks.iter().any(|task_opt| {
             if let Some(task) = task_opt {
@@ -548,10 +585,11 @@ impl AsyncScheduler {
     }
     
     /// Get scheduler statistics
+    #[allow(dead_code)] // superseded by MultiPriorityExecutor aggregate accessors
     pub fn stats(&self) -> (u32, u32, u32) {
         (
-            self.active_tasks.load(Ordering::Relaxed),
-            self.event_counter.load(Ordering::Relaxed),
+            self.active_tasks,
+            self.event_counter,
             self.timer_base.load(Ordering::Relaxed)
         )
     }
@@ -639,10 +677,15 @@ pub fn sleep_current(duration: u32) {
     with_scheduler(|sched| sched.sleep_current_task(duration));
 }
 
-/// Update global timer (call this periodically from timer interrupt)
+/// Update global scheduler time (call once per main-loop cycle).
+///
+/// Feeds the multi-priority executor — the instance that runs tasks and owns
+/// sleep/wake deadlines. The legacy single-priority scheduler is intentionally
+/// NOT fed anymore: it holds no tasks, and stats now report the executor's
+/// state (see scheduler_stats).
 #[allow(dead_code)]
 pub fn update_global_timer(current_time: u32) {
-    with_scheduler(|sched| sched.update_timer(current_time));
+    with_multi_scheduler(|sched| sched.update_timer(current_time));
 }
 
 /// Run scheduler and return current task
@@ -677,9 +720,20 @@ pub fn interrupt_priority_event(event_id: u32) {
 }
 
 /// Get scheduler statistics (active_tasks, total_events, timer)
+///
+/// Reads the multi-priority executor — the instance tasks actually live in
+/// (add_priority_task/schedule_with_priority). The legacy single-priority
+/// scheduler is kept for compatibility but holds no tasks, so reporting it
+/// used to show a misleading 0/0/... (fixed in Phase 0).
 #[allow(dead_code)]
 pub fn scheduler_stats() -> (u32, u32, u32) {
-    with_scheduler(|sched| sched.stats())
+    with_multi_scheduler(|sched| {
+        (
+            sched.active_task_count(),
+            sched.total_events(),
+            sched.timer_value(),
+        )
+    })
 }
 
 /// Check if any scheduler has ready work

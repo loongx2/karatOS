@@ -1,0 +1,31 @@
+# Module links with rust-lld (no C toolchain) at its fixed slot address.
+# Link args (-T module.x) are injected by build.rs with absolute paths.
+# This per-crate config applies when cargo runs inside modules/hello.
+
+[target.thumbv7m-none-eabi]
+rustflags = [
+  "-C", "linker=rust-lld",
+  "-C", "link-arg=--gc-sections",
+  "-C", "link-arg=--nmagic",
+]
+
+[target.riscv32imac-unknown-none-elf]
+rustflags = [
+  "-C", "linker=rust-lld",
+  "-C", "link-arg=--gc-sections",
+  "-C", "link-arg=--nmagic",
+]
+
+[target.riscv32imc-unknown-none-elf]
+rustflags = [
+  "-C", "linker=rust-lld",
+  "-C", "link-arg=--gc-sections",
+  "-C", "link-arg=--nmagic",
+]
+
+[target.riscv64gc-unknown-none-elf]
+rustflags = [
+  "-C", "linker=rust-lld",
+  "-C", "link-arg=--gc-sections",
+  "-C", "link-arg=--nmagic",
+]

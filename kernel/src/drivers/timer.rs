@@ -1,93 +1,76 @@
-//! Timer Driver Module
-//! Unified timer driver for different timer hardware
+//! ============================================================================
+//! MODULE : drivers::timer — monotonic time source driver
+//! ----------------------------------------------------------------------------
+//! PURPOSE
+//!   Implements the `Driver` contract for the platform tick timer. The actual
+//!   hardware programming (SysTick on ARM, CLINT mtimecmp on RISC-V) lives in
+//!   the arch layer because it is core-private, not bus-attached; this driver
+//!   exposes the resulting monotonic time through the driver model so kernel
+//!   code and (later) modules consume time via the registry, never via arch
+//!   internals directly.
+//!
+//! ROLE IN BOOT FLOW
+//!   `PLATFORM_TIMER` singleton in drivers/mod.rs; registered second (after
+//!   the console). `arch::init_tick()` must have started the hardware tick
+//!   before `read_ticks()` produces non-zero time.
+//!
+//! TIME MODEL
+//!   The arch tick ISR bumps a latch; the main loop drains the latch into
+//!   `arch::MILLIS` at 1 kHz (`arch::TICK_RATE_HZ`). ISR-safe by design: the
+//!   ISR never touches scheduler state.
+//!
+//! MEMORY BUDGET
+//!   One `u32` (clock hint) per instance + the atomics in arch/mod.rs.
+//! ============================================================================
 
-use super::{Driver, DeviceConfig};
+use super::{DeviceClass, Driver, DriverError};
 
-/// Unified Timer driver
-pub struct TimerDriver {
-    base_addr: usize,
-    timer_type: TimerType,
+/// Tick timer driver — monotonic milliseconds since boot.
+pub struct TickTimerDriver {
+    /// Tick input clock (Hz), informational, from the board description.
+    clock_hz: u32,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum TimerType {
-    ArmGeneric,    // ARM Generic Timer
-    RiscvClint,    // RISC-V CLINT Timer
-}
-
-#[derive(Debug)]
-pub enum TimerError {
-    UnsupportedType,
-    InitializationFailed,
-}
-
-impl TimerDriver {
-    pub fn new(base_addr: usize, timer_type: &str) -> Result<Self, TimerError> {
-        let timer_type = match timer_type {
-            "arm,generic-timer" => TimerType::ArmGeneric,
-            "riscv,clint" => TimerType::RiscvClint,
-            _ => return Err(TimerError::UnsupportedType),
-        };
-        
-        Ok(TimerDriver {
-            base_addr,
-            timer_type,
-        })
+impl TickTimerDriver {
+    /// Const constructor for the platform singleton.
+    pub const fn new() -> Self {
+        Self { clock_hz: 0 }
     }
-    
-    pub fn get_time(&self) -> u64 {
-        match self.timer_type {
-            TimerType::ArmGeneric => self.arm_get_time(),
-            TimerType::RiscvClint => self.riscv_get_time(),
+
+    /// Construct with an explicit clock hint (from a future DTB `clocks=`).
+    #[allow(dead_code)]
+    pub const fn with_clock(clock_hz: u32) -> Self {
+        Self { clock_hz }
+    }
+}
+
+impl Default for TickTimerDriver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Driver for TickTimerDriver {
+    fn name(&self) -> &'static str {
+        "timer0"
+    }
+
+    fn class(&self) -> DeviceClass {
+        DeviceClass::Timer
+    }
+
+    /// Marks the timer as up. The hardware itself was started by
+    /// `arch::init_tick()` just before the registry is initialized.
+    fn init(&mut self) -> Result<(), DriverError> {
+        if self.clock_hz == 0 {
+            // Fill in the arch tick rate as the clock hint on first init.
+            self.clock_hz = crate::arch::TICK_RATE_HZ;
         }
+        Ok(())
     }
-    
-    pub fn set_timeout(&self, timeout: u64) {
-        match self.timer_type {
-            TimerType::ArmGeneric => self.arm_set_timeout(timeout),
-            TimerType::RiscvClint => self.riscv_set_timeout(timeout),
-        }
-    }
-    
-    fn arm_get_time(&self) -> u64 {
-        // For simplicity, just return a dummy value for now
-        // In a real implementation, this would read the ARM generic timer
-        42
-    }
-    
-    fn riscv_get_time(&self) -> u64 {
-        // Simplified RISC-V timer - return a dummy value for now
-        // In a real implementation, we'd need to handle the RISC-V register constraints properly
-        123
-    }
-    
-    fn arm_set_timeout(&self, _timeout: u64) {
-        // Simplified ARM timer implementation
-        // In a real implementation, this would configure the ARM generic timer
-    }
-    
-    fn riscv_set_timeout(&self, _timeout: u64) {
-        // Simplified RISC-V timer implementation
-        // In a real implementation, this would configure machine timer
-    }
-}
 
-impl Driver for TimerDriver {
-    type Error = TimerError;
-    
-    fn init(config: &DeviceConfig) -> Result<Self, Self::Error> {
-        // Initialize timer hardware based on config
-        let timer_type = match config.uart_type {
-            "pl011" => "arm,generic-timer",  // ARM PL011 implies ARM platform
-            _ => "riscv,clint",              // Default to RISC-V
-        };
-        
-        let base_addr = config.timer_base.unwrap_or(0x10000000);
-        TimerDriver::new(base_addr, timer_type)
-    }
-    
-    fn probe(config: &DeviceConfig) -> bool {
-        // Timer is always available in this simplified implementation
-        config.timer_base.is_some()
+    /// Milliseconds since boot.
+    fn read_ticks(&self) -> u64 {
+        crate::arch::millis_since_boot() as u64
     }
 }

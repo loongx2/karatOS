@@ -1,6 +1,60 @@
-//! ARM Cortex-M specific functionality and hardware abstraction
+//! ============================================================================
+//! MODULE : arch::arm — ARM Cortex-M architecture layer
+//! ----------------------------------------------------------------------------
+//! PURPOSE
+//!   ARM-specific implementation of the arch contracts: exception plumbing
+//!   (cortex-m-rt), the SysTick 1 kHz tick source, and the early console
+//!   (pre-driver UART writes to PL011 UART0).
+//!
+//! ROLE IN BOOT FLOW
+//!   cortex-m-rt Reset -> main() -> kernel::init() -> ArmArch::init +
+//!   init_tick() (this module arms SysTick) -> scheduler loop; every SysTick
+//!   overflow calls tick_isr() (one atomic add).
+//!
+//! MEMORY BUDGET
+//!   Handlers are tiny; SysTick registers are core-private (no driver RAM).
+//!
+//! TICK MATH
+//!   LM3S6965 core clock = 12 MHz (QEMU model), tick = 1 kHz:
+//!   RELOAD = 12_000_000 / 1_000 - 1 = 11_999.
+//!   CSR = ENABLE | TICKINT | CLKSOURCE (processor clock).
+//! ============================================================================
 
 use crate::arch::{ArchInit, MemoryLayout};
+
+/// Core clock of the LM3S6965 QEMU model (Hz).
+pub const CORE_CLOCK_HZ: u32 = 12_000_000;
+
+// ---------------------------------------------------------------------------
+// SysTick tick source
+// ---------------------------------------------------------------------------
+/// SysTick registers (core-private, at 0xE000_E010).
+mod systick {
+    pub const BASE: usize = 0xE000_E010;
+    pub const CSR: usize = 0x00; // Control and status
+    pub const RVR: usize = 0x04; // Reload value
+    pub const CVR: usize = 0x08; // Current value
+
+    pub const CSR_ENABLE: u32 = 1 << 0; // Counter on
+    pub const CSR_TICKINT: u32 = 1 << 1; // Raise SysTick exception
+    pub const CSR_CLKSOURCE: u32 = 1 << 2; // Clock = processor clock
+}
+
+/// Program SysTick for a 1 kHz tick and enable its interrupt.
+pub fn init_tick() {
+    let reload = (CORE_CLOCK_HZ / crate::arch::TICK_RATE_HZ) - 1;
+
+    // SAFETY: SysTick registers are core-private MMIO, always present on
+    // Cortex-M3.
+    unsafe {
+        core::ptr::write_volatile((systick::BASE + systick::RVR) as *mut u32, reload);
+        core::ptr::write_volatile((systick::BASE + systick::CVR) as *mut u32, 0); // force reload
+        core::ptr::write_volatile(
+            (systick::BASE + systick::CSR) as *mut u32,
+            systick::CSR_ENABLE | systick::CSR_TICKINT | systick::CSR_CLKSOURCE,
+        );
+    }
+}
 
 // Exception handlers for ARM Cortex-M
 #[cfg(target_arch = "arm")]
@@ -70,11 +124,15 @@ unsafe fn PendSV() {
     }
 }
 
+/// SysTick exception — the 1 kHz kernel tick.
+///
+/// ISR-safety contract: bumps the arch tick latch (one atomic add) and
+/// returns. It must NEVER touch scheduler state: the scheduler holds `&mut`
+/// on its globals from the main context, and critical sections here would
+/// nest incorrectly.
 #[exception]
 unsafe fn SysTick() {
-    loop {
-        cortex_m::asm::wfi();
-    }
+    crate::arch::tick_isr();
 }
 
 // Hard fault handler
@@ -97,50 +155,21 @@ pub struct ArmArch;
 
 impl ArchInit for ArmArch {
     fn init() {
-        // Initialize ARM-specific features
-        ArmArch::init_uart();
+        // NOTE: UART bring-up deliberately moved OUT of arch init — the
+        // Pl011Uart driver owns it now (see drivers::init_platform_devices).
         Self::irq_init();
         Self::setup_memory_protection();
     }
     
     fn irq_init() {
         // Initialize interrupts for ARM
-        // For now, just enable basic interrupt handling
+        // SysTick is armed later by arch::init_tick() (kernel::init step 4);
+        // external IRQs stay masked until the NVIC driver lands (Phase 2).
     }
     
     fn setup_memory_protection() {
         // Set up MPU if available
         // For now, basic setup
-    }
-}
-
-impl ArmArch {
-    fn init_uart() {
-        // LM3S6965EVB UART0 initialization
-        const RCGC1: usize = 0x400FE104; // Run mode clock gating control register 1
-        const UART0_BASE: usize = 0x4000C000;
-        const UARTIBRD: usize = UART0_BASE + 0x024; // Integer baud rate divisor
-        const UARTFBRD: usize = UART0_BASE + 0x028; // Fractional baud rate divisor
-        const UARTLCRH: usize = UART0_BASE + 0x02C; // Line control register
-        const UARTCTL: usize = UART0_BASE + 0x030; // Control register
-        
-        unsafe {
-            // Enable UART0 clock
-            let rcgc1 = core::ptr::read_volatile(RCGC1 as *const u32);
-            core::ptr::write_volatile(RCGC1 as *mut u32, rcgc1 | (1 << 0));
-            
-            // Configure UART for 115200 baud rate (assuming 16MHz system clock)
-            // IBRD = 16MHz / (16 * 115200) = 8.6805 -> 8
-            // FBRD = (0.6805 * 64) + 0.5 = 43.5 -> 44
-            core::ptr::write_volatile(UARTIBRD as *mut u32, 8);
-            core::ptr::write_volatile(UARTFBRD as *mut u32, 44);
-            
-            // Configure line control: 8 bits, no parity, 1 stop bit
-            core::ptr::write_volatile(UARTLCRH as *mut u32, 0x60);
-            
-            // Enable UART, TX, RX
-            core::ptr::write_volatile(UARTCTL as *mut u32, 0x301);
-        }
     }
 }
 
@@ -178,13 +207,17 @@ impl MemoryLayout for ArmMemoryLayout {
     }
 }
 
-/// Interrupt control functions for ARM Cortex-M
+/// Interrupt control helpers for ARM Cortex-M (per-arch API; the arch facade
+/// in arch/mod.rs uses inline asm directly, so these stay as exported surface
+/// for the NVIC driver in Phase 2).
+#[allow(dead_code)]
 pub fn disable_interrupts() {
     unsafe {
         core::arch::asm!("cpsid i", options(nomem, nostack));
     }
 }
 
+#[allow(dead_code)]
 pub fn enable_interrupts() {
     unsafe {
         core::arch::asm!("cpsie i", options(nomem, nostack));

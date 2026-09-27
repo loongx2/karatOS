@@ -12,6 +12,14 @@ get_qemu_interactive_timeout() {
     echo "${QEMU_INTERACTIVE_TIMEOUT:-300}"
 }
 
+# Append the Phase 4 flash-store provisioning device when the build system
+# produced a store image (models a bootloader having written flash pre-boot).
+append_store_device() {
+    if [[ -n "${KARATOS_STORE_BIN:-}" && -f "${KARATOS_STORE_BIN:-}" && -n "${KARATOS_STORE_BASE:-}" ]]; then
+        printf ' -device loader,file=%s,addr=%s,force-raw=on' "$KARATOS_STORE_BIN" "$KARATOS_STORE_BASE"
+    fi
+}
+
 # Run QEMU test for specific target
 run_qemu_test() {
     local target="$1"
@@ -50,8 +58,8 @@ run_qemu_test() {
     log_debug "QEMU args: $qemu_args"
     log_debug "Kernel: $binary_path"
 
-    # Build QEMU command
-    local cmd="$qemu_cmd $qemu_args -kernel $binary_path"
+    # Build QEMU command (+ Phase 4 flash store provisioning)
+    local cmd="$qemu_cmd $qemu_args -kernel $binary_path$(append_store_device)"
 
     log_info "Starting QEMU test (timeout: ${timeout}s)"
     log_debug "Command: $cmd"

@@ -1,3 +1,15 @@
+//! ============================================================================
+//! MODULE : config — target/build capability descriptors
+//! ----------------------------------------------------------------------------
+//! PURPOSE
+//!   Const "what am I compiled for" descriptors (arch name, pointer width,
+//!   FPU/MMU presence, endianness, runtime knobs). Pure data for diagnostics
+//!   and future feature gating; consumed nowhere on the hot path.
+//!
+//! OOP MODEL / MEMORY BUDGET
+//!   Plain const structs, fully inlined; zero RAM cost.
+//! ============================================================================
+
 //! Configuration management for the karatOS kernel
 
 /// Target platform information

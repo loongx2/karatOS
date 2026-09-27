@@ -40,8 +40,18 @@ SECTIONS
     *(.rodata .rodata.*);
   } > FLASH
 
+  /* KAPI export table at a FIXED address so loadable modules bind to it at
+     their own link time (karatos-kapi::KAPI_ADDR_ARM). No dynamic loader. */
+  .kapi 0x0001F000 :
+  {
+    KEEP(*(.kapi .kapi.*));
+  } > FLASH
+
   /* Initialized data section */
-  .data : AT(ADDR(.rodata) + SIZEOF(.rodata))
+  /* Load image pinned ABOVE the fixed .kapi table: lld merges .rodata and
+     .kapi into one PT_LOAD spanning [0, kapi_end]; a trailing LMA would
+     overlap it and QEMU refuses to load overlapping ROM regions. */
+  .data : AT(0x0001F800)
   {
     . = ALIGN(4);
     __sdata = .;

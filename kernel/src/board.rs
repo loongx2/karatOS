@@ -1,139 +1,170 @@
-//! Board Configuration Module
-//! Provides board-specific configurations and initialization
+//! ============================================================================
+//! MODULE : board — board description layer (what hardware does this SoC have?)
+//! ----------------------------------------------------------------------------
+//! PURPOSE
+//!   Names the board and lists its on-chip devices as `DeviceConfig` blobs.
+//!   This is the compile-time stand-in for the Phase-2 runtime device tree:
+//!   today the table is a `const` selected by target architecture; tomorrow
+//!   the same table will be parsed from a DTB image stored in flash/OTP and
+//!   selected by a board ID burned into OTP. Boot code shape stays identical.
+//!
+//! ROLE IN BOOT FLOW
+//!   kernel::init() -> init_board() (clock/power hooks) -> device_configs()
+//!   consumed by drivers::init_platform_devices().
+//!
+//! MEMORY BUDGET
+//!   Pure .rodata (const tables); no runtime RAM cost.
+//!
+//! OOP MODEL
+//!   Data only — the *behavior* lives behind the `Driver` trait; the board
+//!   layer just pairs device instances with driver singletons by name.
+//! ============================================================================
 
-use crate::config::BoardConfig;
 use crate::drivers::DeviceConfig;
+// `DeviceClass` is only referenced by the per-target device tables below;
+// the host table is empty, so the import would be unused there.
+#[cfg(any(target_arch = "arm", target_arch = "riscv32", target_arch = "riscv64"))]
+use crate::drivers::{DeviceClass, DriverFlavor};
 
-/// Initialize board-specific features (clocks, power management, etc.)
-pub fn init_board() {
-    // Board-specific initialization
-    #[cfg(all(target_arch = "arm", feature = "board_lm3s6965evb"))]
-    init_lm3s6965evb();
-    
-    #[cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), feature = "board_qemu_virt"))]
-    init_qemu_virt_riscv();
-    
-    // Default board initialization if no specific board is configured
-    #[cfg(not(any(feature = "board_lm3s6965evb", feature = "board_qemu_virt")))]
-    init_default_board();
-}
-
-/// Get board-specific configuration
-pub fn get_board_config() -> BoardConfig {
-    #[cfg(all(target_arch = "arm", feature = "board_lm3s6965evb"))]
+/// This board's OTP-equivalent identity (karatos_kapi::board_id values).
+/// On real silicon this constant is REPLACED at boot by a read of the OTP
+/// block; in QEMU the board is known by construction.
+pub const BOARD_ID: u16 = {
+    #[cfg(all(target_arch = "arm", not(armv8m_target)))]
     {
-        get_lm3s6965evb_config()
+        crate::board::board_id::LM3S6965
     }
-    
-    #[cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), feature = "board_qemu_virt"))]
+    #[cfg(all(target_arch = "arm", armv8m_target))]
     {
-        get_qemu_virt_riscv_config()
+        crate::board::board_id::MPS3_AN547
     }
-    
-    // Default board configuration
-    #[cfg(not(any(feature = "board_lm3s6965evb", feature = "board_qemu_virt")))]
+    #[cfg(all(target_arch = "riscv32", imc_target))]
     {
-        get_default_board_config()
+        crate::board::board_id::QEMU_VIRT_RV32IMC
     }
-}
-
-/// LM3S6965EVB board configuration
-#[cfg(all(target_arch = "arm", feature = "board_lm3s6965evb"))]
-fn init_lm3s6965evb() {
-    // Initialize LM3S6965EVB specific features
-    // - System clock configuration
-    // - GPIO configuration
-    // - Peripheral power management
-}
-
-#[cfg(all(target_arch = "arm", feature = "board_lm3s6965evb"))]
-fn get_lm3s6965evb_config() -> BoardConfig {
-    BoardConfig {
-        board_name: "LM3S6965EVB",
-        device_config: DeviceConfig {
-            uart_base: 0x4000C000,
-            uart_type: "PL011",
-            timer_base: 0x40030000,
-            memory_base: 0x20000000,
-            memory_size: 64 * 1024,
-        },
-        peripherals: &["UART0", "TIMER0", "GPIO", "SYSTICK"],
+    #[cfg(all(target_arch = "riscv32", not(imc_target)))]
+    {
+        crate::board::board_id::QEMU_VIRT_RV32IMAC
     }
-}
-
-/// QEMU RISC-V virt board configuration
-#[cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), feature = "board_qemu_virt"))]
-fn init_qemu_virt_riscv() {
-    // Initialize QEMU RISC-V virt board specific features
-    // - PLIC configuration
-    // - CLINT configuration
-    // - Platform-specific setup
-}
-
-#[cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), feature = "board_qemu_virt"))]
-fn get_qemu_virt_riscv_config() -> BoardConfig {
-    BoardConfig {
-        board_name: "QEMU RISC-V virt",
-        device_config: DeviceConfig {
-            uart_base: 0x10000000,
-            uart_type: "NS16550A",
-            timer_base: Some(0x02000000),
-            memory_base: 0x80000000,
-            memory_size: 128 * 1024 * 1024,
-        },
-        peripherals: &["UART16550", "CLINT", "PLIC"],
+    #[cfg(target_arch = "riscv64")]
+    {
+        crate::board::board_id::QEMU_VIRT_RV64
     }
+    #[cfg(not(any(
+        target_arch = "arm",
+        target_arch = "riscv32",
+        target_arch = "riscv64"
+    )))]
+    {
+        0
+    }
+};
+
+/// Re-exported for store/board validation call sites.
+pub mod board_id {
+    pub use karatos_kapi::board_id::*;
 }
 
-/// Default board configuration
-fn init_default_board() {
-    // Generic board initialization
+/// Nominal core clock of the LM3S6965 as modeled by QEMU (12 MHz).
+#[cfg(target_arch = "arm")]
+pub const CORE_CLOCK_HZ: u32 = 12_000_000;
+
+/// Timebase of the CLINT `mtime` counter on the QEMU `virt` machine (10 MHz).
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+pub const CORE_CLOCK_HZ: u32 = 10_000_000;
+
+#[cfg(not(any(target_arch = "arm", target_arch = "riscv32", target_arch = "riscv64")))]
+pub const CORE_CLOCK_HZ: u32 = 0;
+
+/// One board's static description.
+#[allow(dead_code)] // host build never enumerates devices; DTB replaces in Phase 2
+pub struct BoardConfig {
+    /// Human-readable board name (printed on the boot banner).
+    pub board_name: &'static str,
+    /// On-chip devices, in registration order (UART first!).
+    pub devices: &'static [DeviceConfig],
 }
 
-fn get_default_board_config() -> BoardConfig {
+// ---------------------------------------------------------------------------
+// Per-architecture device tables
+// ---------------------------------------------------------------------------
+
+// LM3S6965EVB: PL011 UART0 + core SysTick (base = SysTick control register).
+#[cfg(target_arch = "arm")]
+pub static DEVICES: &[DeviceConfig] = &[
+    DeviceConfig {
+        name: "uart0",
+        class: DeviceClass::Uart,
+        flavor: DriverFlavor::Pl011,
+        base: 0x4000_C000,
+        clock_hz: CORE_CLOCK_HZ,
+        baud: Some(115_200),
+    },
+    DeviceConfig {
+        name: "timer0",
+        class: DeviceClass::Timer,
+        flavor: DriverFlavor::SysTick,
+        base: 0xE000_E010, // SysTick CSR — informational, core-private
+        clock_hz: CORE_CLOCK_HZ,
+        baud: None,
+    },
+];
+
+// QEMU virt (RV32/RV64): NS16550A UART0 + CLINT timer (base = CLINT mtimecmp).
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+pub static DEVICES: &[DeviceConfig] = &[
+    DeviceConfig {
+        name: "uart0",
+        class: DeviceClass::Uart,
+        flavor: DriverFlavor::Ns16550,
+        base: 0x1000_0000,
+        clock_hz: 0, // NS16550 is clock-less under QEMU
+        baud: Some(115_200),
+    },
+    DeviceConfig {
+        name: "timer0",
+        class: DeviceClass::Timer,
+        flavor: DriverFlavor::Clint,
+        base: 0x0200_4000, // CLINT mtimecmp for hart 0
+        clock_hz: CORE_CLOCK_HZ,
+        baud: None,
+    },
+];
+
+// Host build: no real devices.
+#[cfg(not(any(target_arch = "arm", target_arch = "riscv32", target_arch = "riscv64")))]
+pub static DEVICES: &[DeviceConfig] = &[];
+
+/// Board name for the current target.
+pub const fn board_name() -> &'static str {
     #[cfg(target_arch = "arm")]
     {
-        BoardConfig {
-            board_name: "Generic ARM Board",
-            device_config: DeviceConfig {
-                uart_base: 0x4000C000,
-                uart_type: "PL011",
-                timer_base: Some(0x40030000),
-                memory_base: 0x20000000,
-                memory_size: 64 * 1024,
-            },
-            peripherals: &["UART", "TIMER"],
-        }
+        "LM3S6965EVB (Cortex-M3)"
     }
-    
     #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
     {
-        BoardConfig {
-            board_name: "Generic RISC-V Board",
-            device_config: DeviceConfig {
-                uart_base: 0x10000000,
-                uart_type: "NS16550A",
-                timer_base: Some(0x02000000),
-                memory_base: 0x80000000,
-                memory_size: 128 * 1024 * 1024,
-            },
-            peripherals: &["UART", "TIMER"],
-        }
+        "QEMU virt (RISC-V)"
     }
-    
-    #[cfg(not(any(target_arch = "arm", any(target_arch = "riscv32", target_arch = "riscv64"))))]
+    #[cfg(not(any(target_arch = "arm", target_arch = "riscv32", target_arch = "riscv64")))]
     {
-        // Default configuration for host testing
-        BoardConfig {
-            board_name: "Host Test Board",
-            device_config: DeviceConfig {
-                uart_base: 0x00000000,
-                uart_type: "HOST",
-                timer_base: None,
-                memory_base: 0x00000000,
-                memory_size: 1024 * 1024 * 1024,
-            },
-            peripherals: &["HOST"],
-        }
+        "Host (no board)"
     }
+}
+
+/// Full board configuration for the current target.
+#[allow(dead_code)] // host build: empty device table, config unused
+pub const fn board_config() -> BoardConfig {
+    BoardConfig {
+        board_name: board_name(),
+        devices: DEVICES,
+    }
+}
+
+/// Board early bring-up hook (clocks, power domains).
+///
+/// Real clock gating happens inside the drivers that need it (e.g. the PL011
+/// driver gates its own clock), so this stays a stub today. In Phase 2/5 this
+/// is where DTB-declared clock/pinmux setup will run.
+pub fn init_board() {
+    // No-op: see module docs.
 }

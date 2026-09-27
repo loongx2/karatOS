@@ -1,5 +1,29 @@
-//! karatOS - Multi-architecture RTOS kernel
-//! Unified entry point for ARM and RISC-V targets
+//! ============================================================================
+//! MODULE : kernel binary — unified entry point for ARM and RISC-V targets
+//! ----------------------------------------------------------------------------
+//! PURPOSE
+//!   Boot entry, then a live demonstration of the multi-priority scheduler
+//!   driven by the REAL 1 kHz tick (SysTick on ARM, CLINT on RISC-V).
+//!
+//! BOOT FLOW (identical on both architectures)
+//!   [arch reset] -> main() -> boot_kernel()
+//!     1. kernel::init()        board -> arch -> driver registry -> 1 kHz tick
+//!     2. run_enhanced_scheduler_test()
+//!        per cycle: arch::advance_time() drains the tick latch into MILLIS,
+//!        then update_global_timer() feeds the scheduler real milliseconds —
+//!        replacing the old fake `timer_counter`.
+//!
+//! SCHEDULER (see scheduler.rs)
+//!   Cooperative, 4 priority levels (Critical > High > Normal > Low),
+//!   lock-free event queues, `MAX_TASKS` slots, static allocation only.
+//!   No context switching: the tick drives time/sleeps, NOT preemption —
+//!   a documented Phase-0 decision (keeps ROM/RAM and ISR latency minimal).
+//!
+//! MEMORY BUDGET
+//!   Tasks are zero-sized fn()s executed from scheduler slots; demo output
+//!   goes through arch::early_println (pre-driver console path). Release
+//!   footprint target: < 64 kB ROM / < 64 kB SRAM (enforced by size.sh).
+//! ============================================================================
 
 #![no_std]
 #![no_main]
@@ -24,15 +48,37 @@ use riscv_rt::entry;
 
 // Include modules directly since this is the main binary
 mod arch;
+mod board;
 mod config;
+mod dtb;
 mod drivers;
+mod kapi;
+mod modules;
 mod kernel;
+mod logger;
 mod memory;
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 mod riscv_rt_config;
 
+// ---------------------------------------------------------------------------
+// Phase 3: embedded flash module store. The loadable module (modules/hello)
+// is built BEFORE the kernel and its raw image is embedded here at compile
+// time. Phase 4 moves this to a dedicated flash store region; the loader
+// path (verify CRC -> copy to RAM slot -> call in) is already the real one.
+// ---------------------------------------------------------------------------
+#[cfg(karatos_module_image)]
+static MODULE_IMAGE: &[u8] = include_bytes!(env!("KARATOS_MODULE_BIN"));
+
+/// Load the embedded module image. Lives in the bin because the image
+/// itself is embedded in the binary (lib stays image-agnostic).
+#[cfg(karatos_module_image)]
+fn load_embedded_module() -> Result<usize, modules::ModuleError> {
+    modules::load_image(MODULE_IMAGE)
+}
+
 // Import scheduler for task management
 mod scheduler;
+mod store;
 use scheduler::{Task, TaskPriority, EventPriority, post_priority_event, 
                 add_priority_task, schedule_with_priority, 
                 update_global_timer, has_ready_work, current_priority_level};
@@ -221,12 +267,103 @@ fn run_enhanced_scheduler_test() -> ! {
     arch::early_println("");
 
     let mut cycle_counter = 0u32;
-        let mut timer_counter = 0u32;    loop {
+    loop {
         cycle_counter += 1;
-        timer_counter += 1;
 
-        // Update global timer (simulates timer interrupt)
-        update_global_timer(timer_counter);
+        // Advance the kernel clock: drain the tick latch (fed by the
+        // SysTick/CLINT ISR at 1 kHz) into monotonic millis, then hand the
+        // scheduler the real time-of-boot. This replaces the old fake
+        // `timer_counter` — sleeps and timeouts are now honest.
+        let now = arch::advance_time();
+        update_global_timer(now);
+
+        // ---- Phase 3 demo: load -> list -> retract -> list -> reload -----
+        // Proves the module is EXTENSIBLE (adds code at runtime) and
+        // RETRACTABLE (SRAM reclaimed, slot wiped, re-loadable afterwards).
+        // Phase 4: the store (flash region provisioned by the bootloader)
+        // is authoritative; the embedded image is the offline fallback.
+        match cycle_counter {
+            50 => {
+                arch::early_println("\r\n[store] probing flash store...");
+                match store::probe() {
+                    Ok(st) => {
+                        arch::early_println("[store] ok: board ");
+                        arch::early_println(core::str::from_utf8(&u32_to_str(st.board_id() as u32)).unwrap_or("?"));
+                        arch::early_println(" | entries: ");
+                        arch::early_println(core::str::from_utf8(&u32_to_str(st.entry_count() as u32)).unwrap_or("?"));
+                    }
+                    Err(e) => {
+                        let code = match e {
+                            store::StoreError::NoStore => 0u32,
+                            store::StoreError::BadMagic => 1,
+                            store::StoreError::BadVersion => 2,
+                            store::StoreError::BoardMismatch => 3,
+                            store::StoreError::BadSize => 4,
+                            store::StoreError::CrcMismatch => 5,
+                            store::StoreError::NotFound => 6,
+                            store::StoreError::LoadFailed => 7,
+                        };
+                        arch::early_println("[store] probe error ");
+                        arch::early_println(core::str::from_utf8(&u32_to_str(code)).unwrap_or("?"));
+                    }
+                }
+            }
+            60 => {
+                let from_store = matches!(store::probe(), Ok(ref st) if st.image("hello").is_ok());
+                if from_store {
+                    arch::early_println("\r\n[store] loading module 'hello' by name...");
+                    match store::load("hello") {
+                        Ok(idx) => {
+                            arch::early_println("[store] loaded at registry slot ");
+                            arch::early_println(core::str::from_utf8(&u32_to_str(idx as u32)).unwrap_or("?"));
+                        }
+                        Err(_) => arch::early_println("[store] load FAILED"),
+                    }
+                }
+                #[cfg(karatos_module_image)]
+                if !from_store {
+                    arch::early_println("\r\n[mod] falling back to embedded module image...");
+                    match load_embedded_module() {
+                        Ok(_) => arch::early_println("[mod] embedded module loaded"),
+                        Err(_) => arch::early_println("[mod] load FAILED"),
+                    }
+                }
+            }
+            100 => {
+                arch::early_println("\r\n[mod] module registry:");
+                modules::list();
+            }
+            150 => {
+                arch::early_println("\r\n[mod] retracting slot 0...");
+                let _ = modules::retract(0);
+            }
+            160 => {
+                arch::early_println("\r\n[store] listing store entries:");
+                match store::probe() {
+                    Ok(st) => {
+                        arch::early_println("[store] entries: ");
+                        arch::early_println(core::str::from_utf8(&u32_to_str(st.entry_count() as u32)).unwrap_or("?"));
+                    }
+                    Err(_) => arch::early_println("[store] not provisioned"),
+                }
+            }
+            200 => {
+                arch::early_println("\r\n[mod] module registry after retract:");
+                modules::list();
+            }
+            250 => {
+                arch::early_println("\r\n[mod] re-loading module (extensibility is repeatable)");
+                let via_store = matches!(store::probe(), Ok(ref st) if st.image("hello").is_ok());
+                if via_store {
+                    let _ = store::load("hello");
+                }
+                #[cfg(karatos_module_image)]
+                if !via_store {
+                    let _ = load_embedded_module();
+                }
+            }
+            _ => {}
+        }
 
         // Run the enhanced multi-priority scheduler
         if let Some(current_task) = schedule_with_priority() {
@@ -368,33 +505,45 @@ fn run_enhanced_scheduler_test() -> ! {
     }
 }
 
+/// Unified boot path: both architectures land here after their runtime
+/// reset code. kernel::init() performs DTB probe -> board -> arch -> driver
+/// registry -> tick bring-up, then the scheduler + module demo runs forever.
+///
+/// `dtb_addr` — Phase 2: the RISC-V boot protocol delivers the device tree
+/// pointer in a1 (captured by the entry fn); ARM passes None and uses the
+/// built-in board table.
+fn boot_kernel(dtb_addr: Option<usize>) -> ! {
+    kernel::init(dtb_addr);
+    run_enhanced_scheduler_test()
+}
+
 /// ARM-specific entry point
 #[cfg(target_arch = "arm")]
 #[entry]
 fn main() -> ! {
-    // Test basic semihosting
+    // Test basic semihosting (available even before driver init)
     hprintln!("Hello from ARM Cortex-M3!");
-    arch::early_println("ARM UART initialized");
 
-    // Run the enhanced scheduler test
-    run_enhanced_scheduler_test()
+    // LM3S QEMU provides no firmware DTB — boot with the built-in table.
+    boot_kernel(None)
 }
 
 /// Main entry point for the kernel
 /// This function is called by the architecture-specific boot code
 #[no_mangle]
 pub fn kernel_main() -> ! {
-    // Initialize and run the kernel with enhanced scheduler test
-    kernel::init();
-    run_enhanced_scheduler_test()
+    boot_kernel(None)
 }
 
 // Architecture-specific entry points
 
-/// RISC-V specific entry point
+/// RISC-V specific entry point.
+/// Boot protocol registers (riscv-rt forwards them): a0 = hart id,
+/// a1 = device tree blob pointer (Phase 2 runtime enumeration input).
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 #[riscv_rt::entry]
-fn main() -> ! {
+fn main(a0: usize, a1: usize, _a2: usize) -> ! {
+    let _ = a0;
     arch::early_println("RISC-V entry point reached");
-    run_enhanced_scheduler_test()
+    boot_kernel(if a1 != 0 { Some(a1) } else { None })
 }

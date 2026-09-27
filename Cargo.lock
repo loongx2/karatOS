@@ -120,6 +120,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hello"
+version = "0.1.0"
+dependencies = [
+ "karatos-kapi",
+]
+
+[[package]]
+name = "karatos-kapi"
+version = "0.1.0"
+
+[[package]]
 name = "karatos-kernel"
 version = "0.1.0"
 dependencies = [
@@ -127,6 +138,7 @@ dependencies = [
  "cortex-m-rt",
  "cortex-m-semihosting",
  "heapless",
+ "karatos-kapi",
  "nb 1.1.0",
  "panic-halt",
  "riscv",

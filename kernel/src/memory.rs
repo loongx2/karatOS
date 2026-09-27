@@ -1,3 +1,16 @@
+//! ============================================================================
+//! MODULE : memory — architecture-agnostic RAM/ROM region descriptors
+//! ----------------------------------------------------------------------------
+//! PURPOSE
+//!   Runtime mirror of the linker templates (build/templates/memory-*.x):
+//!   where RAM/flash start and how big they are, plus derived stack/heap
+//!   placement. Kept in sync manually today; Phase 4 will generate this
+//!   from the linker script so they can never diverge.
+//!
+//! MEMORY BUDGET
+//!   Pure consts/const-fns; zero RAM cost.
+//! ============================================================================
+
 //! Memory layout configuration
 //! Architecture-agnostic memory layout definitions
 

@@ -10,6 +10,9 @@ keywords = ["rtos", "embedded", "arm", "riscv", "no-std"]
 categories = ["embedded", "os"]
 
 [dependencies]
+# Kernel<->module stable ABI (types + fixed addresses; shared with modules)
+karatos-kapi = { path = "../kapi" }
+
 # ARM dependencies
 cortex-m-rt = { version = "0.7", default-features = false, optional = true }
 cortex-m-semihosting = { version = "0.5", optional = true }

@@ -1,6 +1,22 @@
-# Rust build artifacts
+# ---------------------------------------------------------------------------
+# Build artifacts (cargo)
+# ---------------------------------------------------------------------------
 target/
+modules/hello/target/
 
+# Generated linker script (build.sh renders it per-target)
+kernel/memory.x
+
+# karatOS build system
+/build.log
+.build_cache
+
+# Flash store images + raw module images (Phase 3/4 provisioning artifacts)
+store-*.bin
+modules/hello/*.bin
+
+# ---------------------------------------------------------------------------
 # OS generated files
+# ---------------------------------------------------------------------------
 .DS_Store
 Thumbs.db
