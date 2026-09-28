@@ -55,6 +55,7 @@ static mut MILLIS: u32 = 0;
 /// Tick ISR hook — called from arch timer handlers ONLY.
 /// Deliberately minimal (one load-add-store) so ISR latency stays constant.
 #[inline(always)]
+#[allow(dead_code)] // reached via the arch exception symbols, not via Rust
 pub fn tick_isr() {
     // SAFETY: single-writer (ISR context at one priority level); no other
     // code writes TICK_LATCH outside an interrupts-disabled critical section.

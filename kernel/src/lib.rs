@@ -23,7 +23,7 @@
 // Tests run on the host with std linked in (for diagnostics like eprintln!
 // in the dtb walker); all non-test builds stay strictly no_std.
 #![cfg_attr(not(test), no_std)]
-#![cfg(test)]
+// Tests link std for host-side diagnostics (dtb/store walkers).
 #[cfg(test)]
 extern crate std;
 

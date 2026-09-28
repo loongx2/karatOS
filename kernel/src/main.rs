@@ -29,6 +29,21 @@
 #![no_main]
 
 // ARM-specific imports and panic handler
+// Host builds (`cargo check --all-targets`) need a panic handler too:
+// the binary is no_std on every target.
+#[cfg(not(any(
+    target_arch = "arm",
+    target_arch = "riscv32",
+    target_arch = "riscv64",
+    test
+)))]
+#[panic_handler]
+fn host_panic(_: &core::panic::PanicInfo) -> ! {
+    loop {
+        core::hint::spin_loop();
+    }
+}
+
 #[cfg(target_arch = "arm")]
 use panic_halt as _;
 

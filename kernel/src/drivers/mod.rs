@@ -101,7 +101,8 @@ pub enum DriverFlavor {
 pub struct DeviceConfig {
     /// Registry-visible name (stable, lower-case, no whitespace).
     pub name: &'static str,
-    /// Functional class.
+    /// Functional class (capability dispatch; host demo never reads it).
+    #[allow(dead_code)]
     pub class: DeviceClass,
     /// Concrete driver implementation to instantiate.
     pub flavor: DriverFlavor,
@@ -415,6 +416,7 @@ mod tests {
     /// Test double: counts init calls and written bytes, returns fixed ticks.
     struct FakeDriver {
         id: &'static str,
+        #[allow(dead_code)] // mirrors DeviceConfig; dispatch goes via trait
         class: DeviceClass,
         inits: AtomicU64,
         output: AtomicU64,

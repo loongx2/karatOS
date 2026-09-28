@@ -42,6 +42,7 @@ pub const MAX_MODULES: usize = 4;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModuleError {
     /// No embedded module image compiled in (build without the module).
+    #[allow(dead_code)] // constructed only on offline-fallback builds
     NoImage,
     /// Image shorter than header + descriptor.
     TooSmall,
@@ -70,6 +71,11 @@ struct ModuleInstance {
     /// Descriptor address INSIDE the RAM slot (valid while loaded).
     desc: *const ModuleDescriptor,
     /// Bytes occupied in the slot (for wipe on retract).
+    /// Only the target-only retract path reads it, hence the allow on host.
+    #[cfg_attr(
+        not(any(target_arch = "arm", target_arch = "riscv32", target_arch = "riscv64")),
+        allow(dead_code)
+    )]
     size: usize,
 }
 
@@ -82,6 +88,7 @@ static mut REGISTRY: Registry = Registry {
 };
 
 /// Number of currently loaded modules.
+#[allow(dead_code)] // introspection surface for the Phase 5 shell/monitor
 pub fn loaded_count() -> usize {
     // SAFETY: main-loop context only (module-level contract).
     unsafe {

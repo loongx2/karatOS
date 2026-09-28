@@ -193,7 +193,7 @@ pub fn probe() -> Result<Store, StoreError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use abi::{ModuleDescriptor, StoreEntry, StoreHeader};
+    use abi::ModuleDescriptor;
 
     /// Directory end offset (24-byte header + 8 entries x 24 bytes).
     const DIR_END: usize = abi::STORE_DIR_OFF + abi::STORE_MAX_ENTRIES * 24;

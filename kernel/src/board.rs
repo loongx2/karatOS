@@ -26,55 +26,36 @@ use crate::drivers::DeviceConfig;
 #[cfg(any(target_arch = "arm", target_arch = "riscv32", target_arch = "riscv64"))]
 use crate::drivers::{DeviceClass, DriverFlavor};
 
+// Core-clock constants come from the arch layer (single source of truth for
+// tick math and board tables alike).
+#[cfg(target_arch = "arm")]
+use crate::arch::arm::CORE_CLOCK_HZ;
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+use crate::arch::riscv::CORE_CLOCK_HZ;
+
 /// This board's OTP-equivalent identity (karatos_kapi::board_id values).
 /// On real silicon this constant is REPLACED at boot by a read of the OTP
 /// block; in QEMU the board is known by construction.
-pub const BOARD_ID: u16 = {
-    #[cfg(all(target_arch = "arm", not(armv8m_target)))]
-    {
-        crate::board::board_id::LM3S6965
-    }
-    #[cfg(all(target_arch = "arm", armv8m_target))]
-    {
-        crate::board::board_id::MPS3_AN547
-    }
-    #[cfg(all(target_arch = "riscv32", imc_target))]
-    {
-        crate::board::board_id::QEMU_VIRT_RV32IMC
-    }
-    #[cfg(all(target_arch = "riscv32", not(imc_target)))]
-    {
-        crate::board::board_id::QEMU_VIRT_RV32IMAC
-    }
-    #[cfg(target_arch = "riscv64")]
-    {
-        crate::board::board_id::QEMU_VIRT_RV64
-    }
-    #[cfg(not(any(
-        target_arch = "arm",
-        target_arch = "riscv32",
-        target_arch = "riscv64"
-    )))]
-    {
-        0
-    }
-};
+// Per-target OTP-equivalent board identity. Separate `const` items with
+// exclusive `#[cfg]`s (instead of one cfg-picked block) stay total on every
+// target, including host analysis where no branch matches.
+#[cfg(all(target_arch = "arm", not(armv8m_target)))]
+pub const BOARD_ID: u16 = karatos_kapi::board_id::LM3S6965;
+#[cfg(all(target_arch = "arm", armv8m_target))]
+pub const BOARD_ID: u16 = karatos_kapi::board_id::MPS3_AN547;
+#[cfg(all(target_arch = "riscv32", imc_target))]
+pub const BOARD_ID: u16 = karatos_kapi::board_id::QEMU_VIRT_RV32IMC;
+#[cfg(all(target_arch = "riscv32", not(imc_target)))]
+pub const BOARD_ID: u16 = karatos_kapi::board_id::QEMU_VIRT_RV32IMAC;
+#[cfg(target_arch = "riscv64")]
+pub const BOARD_ID: u16 = karatos_kapi::board_id::QEMU_VIRT_RV64;
+#[cfg(not(any(
+    target_arch = "arm",
+    target_arch = "riscv32",
+    target_arch = "riscv64"
+)))]
+pub const BOARD_ID: u16 = karatos_kapi::board_id::UNPROVISIONED;
 
-/// Re-exported for store/board validation call sites.
-pub mod board_id {
-    pub use karatos_kapi::board_id::*;
-}
-
-/// Nominal core clock of the LM3S6965 as modeled by QEMU (12 MHz).
-#[cfg(target_arch = "arm")]
-pub const CORE_CLOCK_HZ: u32 = 12_000_000;
-
-/// Timebase of the CLINT `mtime` counter on the QEMU `virt` machine (10 MHz).
-#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-pub const CORE_CLOCK_HZ: u32 = 10_000_000;
-
-#[cfg(not(any(target_arch = "arm", target_arch = "riscv32", target_arch = "riscv64")))]
-pub const CORE_CLOCK_HZ: u32 = 0;
 
 /// One board's static description.
 #[allow(dead_code)] // host build never enumerates devices; DTB replaces in Phase 2

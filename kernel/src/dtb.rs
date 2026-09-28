@@ -104,7 +104,7 @@ impl Fdt {
     /// is not `disabled`. One driver per class (first match wins).
     pub fn device_configs(&self) -> heapless::Vec<DeviceConfig, 8> {
         let mut w = Walker {
-            fdt: self as *const Fdt,
+            fdt: self,
             cells: [2; 8], // spec default #address-cells = 2
             depth: 0,
             compat: heapless::String::new(),
@@ -117,19 +117,6 @@ impl Fdt {
         };
         w.run();
         w.out
-    }
-
-    fn string(&self, nameoff: usize) -> &str {
-        let start = self.strings_off + nameoff;
-        let end = start
-            + self
-                .data
-                .get(start..)
-                .unwrap_or(&[])
-                .iter()
-                .position(|&b| b == 0)
-                .unwrap_or(0);
-        core::str::from_utf8(&self.data[start..end]).unwrap_or("?")
     }
 }
 
@@ -159,8 +146,8 @@ fn reg_base(value: &[u8], addr_cells: usize) -> Option<usize> {
 
 /// Single-pass stateful walker: accumulates per-node properties and commits
 /// a `DeviceConfig` when a node closes (FDT_END_NODE).
-struct Walker {
-    fdt: *const Fdt,
+struct Walker<'a> {
+    fdt: &'a Fdt,
     /// `#address-cells` in effect for the node at index `depth`.
     cells: [usize; 8],
     depth: usize,
@@ -174,26 +161,21 @@ struct Walker {
     out: heapless::Vec<DeviceConfig, 8>,
 }
 
-impl Walker {
-    fn fdt(&self) -> &Fdt {
-        // SAFETY: `fdt` is set once at construction and never mutated.
-        unsafe { &*self.fdt }
-    }
-
+impl Walker<'_> {
     fn run(&mut self) {
-        let struct_off = self.fdt().struct_off;
+        let struct_off = self.fdt.struct_off;
         let mut off = struct_off;
         loop {
-            let data_len = self.fdt().data.len();
+            let data_len = self.fdt.data.len();
             if off + 4 > data_len {
                 return; // truncated blob: keep what we collected
             }
-            let token = self.fdt().be32(off);
+            let token = self.fdt.be32(off);
             off += 4;
             match token {
                 FDT_BEGIN_NODE => {
                     let mut end = off;
-                    while end < data_len && self.fdt().data[end] != 0 {
+                    while end < data_len && self.fdt.data[end] != 0 {
                         end += 1;
                     }
                     off = (end + 1 + 3) & !3;
@@ -212,7 +194,7 @@ impl Walker {
                     // borrows, copy the bytes out, THEN mutate: NLL ends
                     // the self borrow before on_prop(&mut self).
                     let (len, nameoff, val) = {
-                        let f = self.fdt();
+                        let f = &self.fdt;
                         (f.be32(off) as usize, f.be32(off + 4) as usize, off + 8)
                     };
                     let next = (val + len + 3) & !3;
@@ -222,12 +204,13 @@ impl Walker {
                     let mut pbuf = [0u8; 24];
                     let mut vbuf = [0u8; 64];
                     {
-                        let f = self.fdt();
+                        let f = &self.fdt;
                         let ps = f.strings_off + nameoff;
-                        let pe = ps + f.data[ps..]
-                            .iter()
-                            .position(|&b| b == 0)
-                            .unwrap_or(0);
+                        let pe = ps
+                            + f.data[ps..]
+                                .iter()
+                                .position(|&b| b == 0)
+                                .unwrap_or(0);
                         let n = (pe - ps).min(pbuf.len());
                         pbuf[..n].copy_from_slice(&f.data[ps..ps + n]);
                         let vn = len.min(vbuf.len());
@@ -314,19 +297,14 @@ impl Walker {
         });
     }
 }
+
 // ---------------------------------------------------------------------------
-// Host tests — synthetic blob built byte-by-byte, walked by the same code
-// paths used on target.
+// Host tests — a synthetic blob built byte-by-byte, walked by the exact
+// code paths used on target.
 // ---------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn be32v(v: u32) -> heapless::Vec<u8, 8> {
-        let mut b = heapless::Vec::new();
-        b.extend_from_slice(&v.to_be_bytes()).unwrap();
-        b
-    }
 
     /// Append `s` + NUL terminator, then pad to 4 bytes — exactly how FDT
     /// stores names and NUL-terminated string property values.
@@ -338,17 +316,23 @@ mod tests {
         }
     }
 
-    /// / { #address-cells=<1>; compatible="test-root";
-    ///     uart@10000000  { compatible="ns16550a"; reg=<0x10000000 0x100>;
-    ///                      clock-frequency=<10000000>; };
-    ///     clint@2000000  { compatible="riscv,clint0"; reg=<0x02000000 0x10000>; };
-    ///     dead@3         { compatible="ns16550a"; status="disabled"; }; }
+    fn be32v(v: u32) -> heapless::Vec<u8, 8> {
+        let mut b = heapless::Vec::new();
+        b.extend_from_slice(&v.to_be_bytes()).unwrap();
+        b
+    }
+
+    /// / { #address-cells=<1>;
+    ///     uart@10000000 { compatible="ns16550a"; reg=<0x10000000 0x100>;
+    ///                     clock-frequency=<10000000>; };
+    ///     clint@2000000 { compatible="riscv,clint0"; reg=<0x02000000 0x10000>; };
+    ///     dead@3        { compatible="ns16550a"; status="disabled"; }; }
     fn synthetic_blob() -> heapless::Vec<u8, 1024> {
         let mut blob = heapless::Vec::new();
         blob.extend_from_slice(&[0u8; 40]).unwrap(); // header placeholder
         let strings_off = 40u32;
         let mut strings = heapless::Vec::<u8, 256>::new();
-        let mut stroff = |strings: &mut heapless::Vec<u8, 256>, s: &str| -> u32 {
+        let stroff = |strings: &mut heapless::Vec<u8, 256>, s: &str| -> u32 {
             let off = strings.len() as u32;
             strings.extend_from_slice(s.as_bytes()).unwrap();
             strings.push(0).unwrap();
@@ -371,18 +355,15 @@ mod tests {
         // uart@10000000 (enabled, with clock)
         st.extend_from_slice(&be32v(FDT_BEGIN_NODE)).unwrap();
         padded(&mut st, b"uart@10000000");
-        // compatible (len=9, NUL-terminated string, padded)
         st.extend_from_slice(&be32v(FDT_PROP)).unwrap();
-        st.extend_from_slice(&be32v(9)).unwrap();
+        st.extend_from_slice(&be32v(9)).unwrap(); // "ns16550a" + NUL
         st.extend_from_slice(&be32v(s_compat)).unwrap();
-        padded(&mut st, b"ns16550a\0");
-        // reg = <0x10000000 0x100> (len=8: address + size cells)
+        padded(&mut st, b"ns16550a");
         st.extend_from_slice(&be32v(FDT_PROP)).unwrap();
         st.extend_from_slice(&be32v(8)).unwrap();
         st.extend_from_slice(&be32v(s_reg)).unwrap();
         st.extend_from_slice(&0x1000_0000u32.to_be_bytes()).unwrap();
         st.extend_from_slice(&0x100u32.to_be_bytes()).unwrap();
-        // clock-frequency (len=4)
         st.extend_from_slice(&be32v(FDT_PROP)).unwrap();
         st.extend_from_slice(&be32v(4)).unwrap();
         st.extend_from_slice(&be32v(s_clock)).unwrap();
@@ -392,7 +373,7 @@ mod tests {
         st.extend_from_slice(&be32v(FDT_BEGIN_NODE)).unwrap();
         padded(&mut st, b"clint@2000000");
         st.extend_from_slice(&be32v(FDT_PROP)).unwrap();
-        st.extend_from_slice(&be32v(13)).unwrap();
+        st.extend_from_slice(&be32v(13)).unwrap(); // "riscv,clint0" + NUL
         st.extend_from_slice(&be32v(s_compat)).unwrap();
         padded(&mut st, b"riscv,clint0");
         st.extend_from_slice(&be32v(FDT_PROP)).unwrap();
@@ -405,7 +386,7 @@ mod tests {
         st.extend_from_slice(&be32v(FDT_BEGIN_NODE)).unwrap();
         padded(&mut st, b"dead@3");
         st.extend_from_slice(&be32v(FDT_PROP)).unwrap();
-        st.extend_from_slice(&be32v(8)).unwrap();
+        st.extend_from_slice(&be32v(9)).unwrap();
         st.extend_from_slice(&be32v(s_compat)).unwrap();
         padded(&mut st, b"ns16550a");
         st.extend_from_slice(&be32v(FDT_PROP)).unwrap();
@@ -430,19 +411,11 @@ mod tests {
         blob[8..12].copy_from_slice(&(struct_off as u32).to_be_bytes());
         blob[12..16].copy_from_slice(&strings_off.to_be_bytes());
         blob[16..20].copy_from_slice(&0u32.to_be_bytes());
-        blob[20..24].copy_from_slice(&17u32.to_be_bytes());
-        blob[24..28].copy_from_slice(&0u32.to_be_bytes());
+        blob[20..24].copy_from_slice(&17u32.to_be_bytes()); // version
+        blob[24..28].copy_from_slice(&0u32.to_be_bytes()); // boot cpu
         blob[28..32].copy_from_slice(&(strings.len() as u32).to_be_bytes());
         blob[32..36].copy_from_slice(&(st.len() as u32).to_be_bytes());
         blob
-    }
-
-#[test]
-    fn dump_blob_bytes() {
-        let blob = synthetic_blob();
-        for (i, chunk) in blob.chunks(4).enumerate() {
-            std::println!("blob[{:3}..{:3}] = {:02x?} (be32={})", i*4, (i+1)*4, chunk, u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
-        }
     }
 
     #[test]

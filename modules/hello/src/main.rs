@@ -39,6 +39,12 @@ const ARCH_ID: u16 = {
     {
         karatos_kapi::EM_RISCV
     }
+    // Host builds only ever `cargo check` this crate (modules are built for
+    // real targets by build.sh); EM_UNKNOWN keeps the const total.
+    #[cfg(not(any(target_arch = "arm", target_arch = "riscv32", target_arch = "riscv64")))]
+    {
+        0
+    }
 };
 
 /// Kernel export table at the fixed per-arch address (see karatos-kapi).

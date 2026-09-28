@@ -11,6 +11,11 @@ description = "First loadable karatOS module: proves extensible + retractable co
 [[bin]]
 name = "hello"
 path = "src/main.rs"
+# The module defines its own #[panic_handler]; a cargo test harness would
+# link std's panic_impl too (duplicate lang item). Never test/bench this bin.
+test = false
+bench = false
+doctest = false
 
 [dependencies]
 # The ABI crate is the ONLY thing a module may depend on — it compiles to
